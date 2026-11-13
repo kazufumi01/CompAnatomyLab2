@@ -1,19 +1,49 @@
-# Compressor Anatomy Lab 2 β — インストール方法 / Installation
+# Compressor Anatomy Lab 2 β — Installation
 
-> **ベータ版です。** Mac の Ableton Live で動作確認済み。
-> **Windows 版は実機での動作確認ができていません**（自動ビルドで作成）。
+**English** | [日本語](#日本語)
+
 > **Beta.** Tested with Ableton Live on Mac.
-> **The Windows build of Lab 2 has NOT been tested on a real Windows machine.**
-> 不具合は / Problems: [Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues)
+> **The Windows build has NOT been tested on physical Windows hardware.**
+> Report problems: [GitHub Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues)
 
-ダウンロード / Download：[Releases ページ](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)
+Download: [Latest release](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)
 
-| ファイル | 内容 |
+| File | Contents |
 |---|---|
-| `CompAnatomyLab2-0.2.0-mac.zip` | Mac・手動インストール（おすすめ） |
-| `CompAnatomyLab2-0.2.0-mac.pkg` | Mac・インストーラー（ターミナルを使いたくない人向け） |
-| `CompAnatomyLab2-0.2.0-win64.zip` | Windows・手動インストール（未検証） |
-| `CompAnatomyLab2-0.2.0-win64.exe` | Windows・インストーラー（未検証） |
+| `CompAnatomyLab2-0.2.0-mac.zip` | macOS — manual installation (recommended) |
+| `CompAnatomyLab2-0.2.0-mac.pkg` | macOS — installer |
+| `CompAnatomyLab2-0.2.0-win64.zip` | Windows — manual installation (untested) |
+| `CompAnatomyLab2-0.2.0-win64.exe` | Windows — installer (untested) |
+
+---
+
+## English
+
+### Mac (macOS 11+, Apple Silicon / Intel) — manual (zip)
+
+1. Unzip.
+2. In Finder, hold Option, open the Go menu › Library, and copy (create folders if missing):
+   - `Compressor Anatomy Lab 2.component` → `Library/Audio/Plug-Ins/Components`
+   - `Compressor Anatomy Lab 2.vst3` → `Library/Audio/Plug-Ins/VST3`
+   - `Compressor Anatomy Lab 2.app` → `Applications` (standalone only)
+3. In Terminal, remove the quarantine flag (the build is not notarized):
+   ```bash
+   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/"Compressor Anatomy Lab 2.component" ~/Library/Audio/Plug-Ins/VST3/"Compressor Anatomy Lab 2.vst3" /Applications/"Compressor Anatomy Lab 2.app"
+   ```
+   ("No such file" for the .app is fine if you skipped it.)
+4. Restart your DAW and rescan plug-ins.
+
+### Mac — installer (pkg)
+
+1. Double-click the `.pkg`. If macOS says it cannot verify the developer, click **Done**.
+2. Open **System Settings › Privacy & Security**, scroll down and click **Open Anyway**, then enter your password.
+3. Choose the formats (AU / VST3 / Standalone), install, and rescan in your DAW.
+
+### Windows (10 / 11, 64-bit) — UNTESTED
+
+**Manual (zip):** before extracting, right-click the zip › Properties › tick "Unblock" › OK. Copy the whole `Compressor Anatomy Lab 2.vst3` folder to `C:\Program Files\Common Files\VST3` and rescan in your DAW. For standalone use, run `Compressor Anatomy Lab 2.exe`.
+
+**Installer (exe):** run it; if "Windows protected your PC" appears, click More info › Run anyway. VST3 is installed to `C:\Program Files\Common Files\VST3`.
 
 ---
 
@@ -57,31 +87,3 @@
 - **アンインストール**：入れたファイルを削除（pkg 版は `/Library/Audio/Plug-Ins/…` と `/Applications`）。
 
 ---
-
-## English
-
-### Mac (macOS 11+, Apple Silicon / Intel) — manual (zip)
-
-1. Unzip.
-2. In Finder, hold Option, open the Go menu › Library, and copy (create folders if missing):
-   - `Compressor Anatomy Lab 2.component` → `Library/Audio/Plug-Ins/Components`
-   - `Compressor Anatomy Lab 2.vst3` → `Library/Audio/Plug-Ins/VST3`
-   - `Compressor Anatomy Lab 2.app` → `Applications` (standalone only)
-3. In Terminal, remove the quarantine flag (the build is not notarized):
-   ```bash
-   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/"Compressor Anatomy Lab 2.component" ~/Library/Audio/Plug-Ins/VST3/"Compressor Anatomy Lab 2.vst3" /Applications/"Compressor Anatomy Lab 2.app"
-   ```
-   ("No such file" for the .app is fine if you skipped it.)
-4. Restart your DAW and rescan plug-ins.
-
-### Mac — installer (pkg)
-
-1. Double-click the `.pkg`. If macOS says it cannot verify the developer, click **Done**.
-2. Open **System Settings › Privacy & Security**, scroll down and click **Open Anyway**, then enter your password.
-3. Choose the formats (AU / VST3 / Standalone), install, and rescan in your DAW.
-
-### Windows (10 / 11, 64-bit) — UNTESTED
-
-**Manual (zip):** before extracting, right-click the zip › Properties › tick "Unblock" › OK. Copy the whole `Compressor Anatomy Lab 2.vst3` folder to `C:\Program Files\Common Files\VST3` and rescan in your DAW. For standalone use, run `Compressor Anatomy Lab 2.exe`.
-
-**Installer (exe):** run it; if "Windows protected your PC" appears, click More info › Run anyway. VST3 is installed to `C:\Program Files\Common Files\VST3`.

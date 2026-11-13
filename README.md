@@ -1,41 +1,84 @@
-# Compressor Anatomy Lab 2 β（JUCE プラグイン）
+# Compressor Anatomy Lab 2 β
 
-by Johan Plus Kei — コンプの中身を「組み立てて・見て・聴いて」学べる VST・AU 対応プラグイン（VST3 / AU / Standalone）。1 台で 21 機種のコンプを、7 つのブロックの組み合わせとして再現します。
+**English** | [日本語](README.ja.md)
+
+by Johan Plus Kei
+
+A free compressor-learning plug-in that lets you **build, visualize, and listen to** compressor designs. Available in **VST3, AU, and Standalone** formats.
+
+Build 21 compressor models by combining seven processing blocks.
 
 ![Compressor Anatomy Lab 2 — PANEL](docs/screenshot-panel.png)
 
-## ⬇️ ダウンロード（ベータ版）/ Download (Beta)
+## Download the beta
 
-**[最新版をダウンロード / Download latest](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)** — 無料配布中 / Free
+**[Download the latest release](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)** — Free
 
-| | 手動インストール（おすすめ） | インストーラー |
+| Platform | Manual installation (recommended) | Installer |
 |---|---|---|
-| **Mac**（macOS 11+, Apple Silicon / Intel） | `CompAnatomyLab2-0.2.0-mac.zip` | `CompAnatomyLab2-0.2.0-mac.pkg` |
-| **Windows**（10 / 11, 64bit）⚠️未検証 | `CompAnatomyLab2-0.2.0-win64.zip` | `CompAnatomyLab2-0.2.0-win64.exe` |
+| **macOS** (11+, Apple Silicon / Intel) | `CompAnatomyLab2-0.2.0-mac.zip` | `CompAnatomyLab2-0.2.0-mac.pkg` |
+| **Windows** (10 / 11, 64-bit) ⚠️ Untested | `CompAnatomyLab2-0.2.0-win64.zip` | `CompAnatomyLab2-0.2.0-win64.exe` |
 
-- 紹介記事（日本語）：**[1台で21機種のコンプを組み立てて学ぶ](https://jpk.seesaa.net/article/522006512.html)**
-- インストール方法：**[INSTALL.md](INSTALL.md)**（日本語 / English）
-- ⚠️ **Windows 版は実機での動作確認ができていません**（自動ビルドで作成。VST3 と Standalone）。 / The Windows build is untested on real hardware.
-- Apple の公証・Windows のコード署名をしていないため、初回のみ警告が出ます。
-- 不具合・要望は [Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues) へ。
+- **Installation guide:** [INSTALL.md](INSTALL.md) (English / 日本語)
+- **Japanese introduction:** [Build and learn 21 compressor designs in one plug-in](https://jpk.seesaa.net/article/522006512.html)
+- ⚠️ **The Windows build has not been tested on physical Windows hardware.** It is an automated VST3 and Standalone build.
+- The macOS build is not notarized and the Windows build is not code-signed. Your operating system may display a security warning on first launch.
+- Report bugs or request features via [GitHub Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues).
 
 ---
 
-## 主な機能
+## Features
 
-- **7 つのブロックでコンプを組み立てる（BUILD）**：① INPUT ② SIDECHAIN ③ DETECTOR ④ GAIN LAW ⑤ TIMING ⑥ ELEMENT ⑦ OUTPUT の「方式」を差し替える
-  - 検出：Peak / RMS / Diode+RC / Peak+RMS、フィードフォワード / フィードバック
-  - ゲインカーブ：Ideal / FET / Opto / Vari-Mu / Diode / Limiter / Rider / Spectral / Clipper、Upward、GR Limit
-  - タイミング：1 段 / 2 段（プログラム依存）/ 光学セル / Auto / Precise（先読み）/ Dual average、リリースカーブ、Look-behind
-  - 素子と出力段：Clean / FET / Tube / Opto / Diode、トランス（Nickel / Iron / Steel）、倍音、オーバーサンプリング 1x / 2x / 4x、直列 2 段
-- **21 の MODEL**：FET 76、Opto 2A / 3A、Vari-Mu 670、Bus VCA G、VCA 160 / 2500、Channel VCA E、Diode 254、EL 8、Tube Opto 1B、Digital DS-1、Dual Opto + VCA、Limiter、Clipper、Spectral、Upward、OTT 3-Band、Rider など（実機名は参考にした系統。定数は文献ベースの初期値）
-- **PANEL**：その機種の実機にある操作子だけを、実機の目盛りと配色で表示。透過して下の BUILD と見比べられ、BUILD 側では PANEL が動かす項目を強調
-- **表示**：TIME（入出力レベルと GR）、SPECTRUM（周波数ごとの増減）、TRANSFER（静特性、ドラッグで操作）、GR WAVE（Attack / Release の定義）、DYNAMICS（PEAK / RMS / CREST / RANGE）、HARMONICS（倍音と折り返し）、SC FILTER（検出器が聴く音）、LOUDNESS（M / S / I、トゥルーピーク、PSR / PLR）
-- **IDEAL 比較**：同じくらいの GR 量のクセのないコンプに切り替えて、機種の「クセ」だけを聴く
-- **LESSON 26 本**（設定の読み込み付き）と **EAR（耳トレ）**：Attack / Release / Ratio / 機種当て
-- **プリセット 62 本**（機種別・用途別）とユーザープリセット、◀ ▶ で順送り。A / B / C / D スロット、パラメーターロック
-- 停止中も最後に鳴った音を今の設定で再計算して表示、Auto gain、Delta（差分）試聴
-- ↑↓ キーで値を 1 段ずつ（Shift で細かく）、配色 14 種、日本語 / English
+### Build a compressor from seven processing blocks
+
+Swap the design or behavior of each block:
+
+1. **INPUT**
+2. **SIDECHAIN**
+3. **DETECTOR**
+4. **GAIN LAW**
+5. **TIMING**
+6. **ELEMENT**
+7. **OUTPUT**
+
+Available options include:
+
+- **Detection:** Peak, RMS, Diode + RC, Peak + RMS; feed-forward and feedback topologies
+- **Gain curves:** Ideal, FET, Opto, Vari-Mu, Diode, Limiter, Rider, Spectral, Clipper, Upward, and GR Limit
+- **Timing:** Single-stage, two-stage (program-dependent), optical cell, Auto, Precise (look-ahead), Dual Average, release curves, and Look-behind
+- **Nonlinear elements and output stages:** Clean, FET, Tube, Opto, Diode; Nickel / Iron / Steel transformers; harmonic generation; 1x / 2x / 4x oversampling; two compressors in series
+
+### 21 compressor models
+
+Explore models such as FET 76, Opto 2A / 3A, Vari-Mu 670, Bus VCA G, VCA 160 / 2500, Channel VCA E, Diode 254, EL 8, Tube Opto 1B, Digital DS-1, Dual Opto + VCA, Limiter, Clipper, Spectral, Upward, OTT 3-Band, and Rider.
+
+Model names refer to the design families used as references. Initial parameter values are based on published technical information; they are not claimed to be exact hardware component values.
+
+### PANEL
+
+The PANEL displays only the controls associated with the selected model, using model-inspired labels, scales, and colors. Its transparent layout lets you compare the front panel with the underlying BUILD configuration. Controls that affect the PANEL are highlighted in BUILD.
+
+### Visual analysis
+
+- **TIME:** Input/output levels and gain reduction
+- **SPECTRUM:** Frequency-dependent level changes
+- **TRANSFER:** Static transfer curve, with direct manipulation
+- **GR WAVE:** Attack and release behavior
+- **DYNAMICS:** Peak, RMS, crest factor, and range
+- **HARMONICS:** Harmonic generation and aliasing
+- **SC FILTER:** The signal heard by the detector
+- **LOUDNESS:** Momentary / Short-term / Integrated loudness, true peak, PSR, and PLR
+
+### Learn by listening
+
+- **IDEAL comparison:** Switch to a neutral compressor with a similar amount of gain reduction to hear the character added by the selected design.
+- **26 lessons:** Load guided settings and explore compressor behavior step by step.
+- **EAR training:** Identify Attack, Release, Ratio, and compressor models by listening.
+- **62 presets:** Explore model-based and application-based presets, plus user presets.
+- **A / B / C / D slots** and parameter locking for comparisons.
+- Recalculate the last-played audio using the current settings, even while playback is stopped.
+- Auto Gain and Delta (difference) monitoring.
+- Fine parameter adjustment with the arrow keys; 14 color themes; Japanese / English interface.
 
 ![BUILD](docs/screenshot-build.png)
 
@@ -45,26 +88,30 @@ by Johan Plus Kei — コンプの中身を「組み立てて・見て・聴い�
 
 ---
 
-## ビルド
+## Build from source
 
 ```bash
-./build.sh            # 手元の JUCE（~/Documents/jpkplugins/JUCE）を使う。無ければ CMake が JUCE 9.0.4 を取得
+./build.sh
 ```
 
-- Windows は GitHub Actions（`.github/workflows/build-win.yml`、手動実行）で VST3 / Standalone をビルドし、Inno Setup でインストーラーを作成
-- Mac のインストーラー作成：`packaging/mac/build_pkg.sh [version]` ／ `packaging/mac/build_zip.sh [version]`（出力は `dist/`）
+The script uses a local JUCE installation at `~/Documents/jpkplugins/JUCE` if available. Otherwise, CMake downloads JUCE 9.0.4.
 
-## ライセンス
+- **Windows:** Run the GitHub Actions workflow `.github/workflows/build-win.yml` manually to build VST3 / Standalone and package the installer with Inno Setup.
+- **macOS installers:** `packaging/mac/build_pkg.sh [version]` and `packaging/mac/build_zip.sh [version]` (output is written to `dist/`).
 
-JUCE は **Starter ライセンス** で使用。配布物はフリーウェア使用許諾（`packaging/mac/resources/license.txt`）に従います。
-ソースは学習目的で公開していますが、無断での再配布・販売はできません。
+## License
+
+JUCE is used under the **JUCE Starter license**. Distributed builds are subject to the freeware license in `packaging/mac/resources/license.txt`.
+
+The source code is published for learning purposes. Redistribution or resale without permission is not allowed.
 
 ---
 
-**Johan Plus Kei** — [Spotify](https://open.spotify.com/artist/30PV2gqUbDDwvuWtKaok0x) ・ [Apple Music](https://music.apple.com/us/artist/johan-plus-kei/519360150) ・ [X](https://x.com/johanpluskei) ・ [Instagram](https://www.instagram.com/johanpluskei) ・ [Learning labs](https://kazufumi01.github.io/)
+**Johan Plus Kei** — [Spotify](https://open.spotify.com/artist/30PV2gqUbDDwvuWtKaok0x) · [Apple Music](https://music.apple.com/us/artist/johan-plus-kei/519360150) · [X](https://x.com/johanpluskei) · [Instagram](https://www.instagram.com/johanpluskei) · [Learning labs](https://kazufumi01.github.io/)
 
-## Support / 支援
+## Support
 
-Compressor Anatomy Lab 2 is free. A one-time tip via [PayPal](https://paypal.me/johanpluskei) is always welcome — **but what helps even more is sharing it and playing my music on [Spotify](https://open.spotify.com/artist/30PV2gqUbDDwvuWtKaok0x)!** Please do! More ways to help: <https://kazufumi01.github.io/support/>
+Compressor Anatomy Lab 2 is free. A one-time tip via [PayPal](https://paypal.me/johanpluskei) is welcome. Even more helpful: share the project and listen to my music on [Spotify](https://open.spotify.com/artist/30PV2gqUbDDwvuWtKaok0x).
 
-Compressor Anatomy Lab 2 は無料です。[PayPal](https://paypal.me/johanpluskei) からの投げ銭も歓迎ですが、**それ以上にうれしいのは記事の拡散と曲の再生です！** [ブログ記事](https://jpk.seesaa.net/article/521891797.html)のシェアや [Spotify](https://open.spotify.com/artist/30PV2gqUbDDwvuWtKaok0x) での再生、ぜひよろしくお願いします！
+More ways to support: <https://kazufumi01.github.io/support/>
+
