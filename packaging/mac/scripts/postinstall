@@ -1,0 +1,4 @@
+#!/bin/sh
+# AU のキャッシュを更新（Logic / Live が新しい AU をすぐ認識するように）
+killall -9 AudioComponentRegistrar 2>/dev/null || true
+exit 0

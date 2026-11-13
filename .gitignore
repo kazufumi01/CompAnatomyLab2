@@ -1,0 +1,10 @@
+build/
+dist/
+*.bak
+*.log
+.DS_Store
+.backup-*/
+test/build/
+test/shots/
+test/*_bin
+ref/
