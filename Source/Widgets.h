@@ -24,7 +24,7 @@ struct ParamHelp
         return true;
     }
     void toggleGesture (const juce::String& id) const { if (altDown()) resetDefault (id); else setGesture (id, value (id) > 0.5f ? 0.0f : 1.0f); }
-    bool ja() const { return proc.uiState.getProperty ("lang", "ja").toString() == "ja"; }
+    bool ja() const { return proc.uiState.getProperty ("lang", "en").toString() == "ja"; }
     juce::String tr (const char* j, const char* e) const { return juce::String::fromUTF8 (ja() ? j : e); }
     int selected() const { return juce::jlimit (0, 5, (int) proc.uiState.getProperty ("selected", 2)); }
     void select (int i) const { proc.uiState.setProperty ("selected", i, nullptr); }
