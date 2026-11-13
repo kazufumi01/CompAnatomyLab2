@@ -13,6 +13,7 @@ by Johan Plus Kei — コンプの中身を「組み立てて・見て・聴い�
 | **Mac**（macOS 11+, Apple Silicon / Intel） | `CompAnatomyLab2-0.2.0-mac.zip` | `CompAnatomyLab2-0.2.0-mac.pkg` |
 | **Windows**（10 / 11, 64bit）⚠️未検証 | `CompAnatomyLab2-0.2.0-win64.zip` | `CompAnatomyLab2-0.2.0-win64.exe` |
 
+- 紹介記事（日本語）：**[1台で21機種のコンプを組み立てて学ぶ](https://jpk.seesaa.net/article/522006512.html)**
 - インストール方法：**[INSTALL.md](INSTALL.md)**（日本語 / English）
 - ⚠️ **Windows 版は実機での動作確認ができていません**（自動ビルドで作成。VST3 と Standalone）。 / The Windows build is untested on real hardware.
 - Apple の公証・Windows のコード署名をしていないため、初回のみ警告が出ます。
