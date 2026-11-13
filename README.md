@@ -40,7 +40,22 @@
   - ゲインカーブ：Ideal / FET / Opto / Vari-Mu / Diode / Limiter / Rider / Spectral / Clipper、Upward、GR Limit
   - タイミング：1 段 / 2 段（プログラム依存）/ 光学セル / Auto / Precise（先読み）/ Dual average、リリースカーブ、Look-behind
   - 素子と出力段：Clean / FET / Tube / Opto / Diode、トランス（Nickel / Iron / Steel）、倍音、オーバーサンプリング 1x / 2x / 4x、直列 2 段
-- **21 の MODEL**：FET 76、Opto 2A / 3A、Vari-Mu 670、Bus VCA G、VCA 160 / 2500、Channel VCA E、Diode 254、EL 8、Tube Opto 1B、Digital DS-1、Dual Opto + VCA、Limiter、Clipper、Spectral、Upward、OTT 3-Band、Rider など（実機名は参考にした系統。定数は文献ベースの初期値）
+- **21 の MODEL**（実機名は参考にした機種。定数は文献ベースの初期値で、回路の再現ではありません。製品名は各社の商標）
+
+  | MODEL | 参考にした実機 |
+  |---|---|
+  | FET 76 | Universal Audio 1176 |
+  | Opto 2A / Opto 3A | Teletronix LA-2A / UREI LA-3A |
+  | Tube Opto 1B | Tube-Tech CL 1B |
+  | Vari-Mu 670 | Fairchild 670 |
+  | Bus VCA G / Channel VCA E | SSL G シリーズ バスコンプ / SSL 4000 E チャンネル |
+  | VCA 160 / VCA 2500 | dbx 160 / API 2500 |
+  | EL 8 | Empirical Labs Distressor |
+  | Diode 254 | Neve 2254 / 33609 |
+  | Dual Opto + VCA | Shadow Hills Mastering Compressor |
+  | Digital DS-1 / Peak + RMS | Weiss DS1-MK3 / TDR Kotelnikov |
+  | OTT 3-Band / Rider | Xfer OTT / Waves Vocal Rider |
+  | Digital Precision・Limiter・Clipper・Spectral・Upward | 方式の比較用（特定の機種なし） |
 - **PANEL**：その機種の実機にある操作子だけを、実機の目盛りと配色で表示。透過して下の BUILD と見比べられ、BUILD 側では PANEL が動かす項目を強調
 - **表示**：TIME（入出力レベルと GR）、SPECTRUM（周波数ごとの増減）、TRANSFER（静特性、ドラッグで操作）、GR WAVE（Attack / Release の定義）、DYNAMICS（PEAK / RMS / CREST / RANGE）、HARMONICS（倍音と折り返し）、SC FILTER（検出器が聴く音）、LOUDNESS（M / S / I、トゥルーピーク、PSR / PLR）
 - **IDEAL 比較**：同じくらいの GR 量のクセのないコンプに切り替えて、機種の「クセ」だけを聴く
@@ -66,7 +81,22 @@
   - Gain law: Ideal / FET / Opto / Vari-Mu / Diode / Limiter / Rider / Spectral / Clipper, Upward, GR Limit
   - Timing: single / two-stage (program-dependent) / optical cell / Auto / Precise (look-ahead) / Dual average, release curves, look-behind
   - Element and output stage: Clean / FET / Tube / Opto / Diode, transformer (Nickel / Iron / Steel), harmonics, 1x / 2x / 4x oversampling, two units in series
-- **21 MODELS**: FET 76, Opto 2A / 3A, Vari-Mu 670, Bus VCA G, VCA 160 / 2500, Channel VCA E, Diode 254, EL 8, Tube Opto 1B, Digital DS-1, Dual Opto + VCA, Limiter, Clipper, Spectral, Upward, OTT 3-Band, Rider and more (names refer to the family of hardware they are based on; constants are literature-based starting values).
+- **21 MODELS** (hardware names show what each model is based on; constants are literature-based starting values, not circuit recreations; product names are trademarks of their owners)
+
+  | MODEL | Based on |
+  |---|---|
+  | FET 76 | Universal Audio 1176 |
+  | Opto 2A / Opto 3A | Teletronix LA-2A / UREI LA-3A |
+  | Tube Opto 1B | Tube-Tech CL 1B |
+  | Vari-Mu 670 | Fairchild 670 |
+  | Bus VCA G / Channel VCA E | SSL G-Series bus compressor / SSL 4000 E channel |
+  | VCA 160 / VCA 2500 | dbx 160 / API 2500 |
+  | EL 8 | Empirical Labs Distressor |
+  | Diode 254 | Neve 2254 / 33609 |
+  | Dual Opto + VCA | Shadow Hills Mastering Compressor |
+  | Digital DS-1 / Peak + RMS | Weiss DS1-MK3 / TDR Kotelnikov |
+  | OTT 3-Band / Rider | Xfer OTT / Waves Vocal Rider |
+  | Digital Precision, Limiter, Clipper, Spectral, Upward | Method references (no specific unit) |
 - **PANEL**: shows only the controls the real unit has, with its scales and colours. It is see-through, so you can compare it with BUILD underneath; BUILD highlights what the panel is moving.
 - **Displays**: TIME (in/out level and GR), SPECTRUM (gain change per frequency), TRANSFER (static curve, draggable), GR WAVE (how Attack / Release are defined), DYNAMICS (PEAK / RMS / CREST / RANGE), HARMONICS (harmonics and aliasing), SC FILTER (what the detector hears), LOUDNESS (M / S / I, true peak, PSR / PLR).
 - **IDEAL compare**: switch to a neutral compressor with about the same gain reduction, so you hear only the model's character.
