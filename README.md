@@ -1,27 +1,39 @@
-# Compressor Anatomy Lab 2 β（JUCE プラグイン）
+# Compressor Anatomy Lab 2 β
 
-by Johan Plus Kei — コンプの中身を「組み立てて・見て・聴いて」学べる VST・AU 対応プラグイン（VST3 / AU / Standalone）。1 台で 21 機種のコンプを、7 つのブロックの組み合わせとして再現します。
+**by Johan Plus Kei** · VST3 / AU / Standalone · 無料ベータ / Free beta
+
+🇯🇵 コンプの中身を「組み立てて・見て・聴いて」学べるプラグイン。1 台で 21 機種のコンプを、7 つのブロックの組み合わせとして再現します。
+🇬🇧 A plug-in for learning compressors by building, seeing and hearing them. It recreates 21 compressor types as combinations of seven building blocks.
+
+**[日本語](#日本語) · [English](#english) · [ダウンロード / Download](#ダウンロード--download) · [開発者向け / For developers](#開発者向け--for-developers)**
 
 ![Compressor Anatomy Lab 2 — PANEL](docs/screenshot-panel.png)
 
-## ⬇️ ダウンロード（ベータ版）/ Download (Beta)
+## ダウンロード / Download
 
-**[最新版をダウンロード / Download latest](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)** — 無料配布中 / Free
+**[最新版をダウンロード / Download latest (0.2.0 beta)](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)**
 
-| | 手動インストール（おすすめ） | インストーラー |
+| | 手動インストール（おすすめ）<br>Manual (recommended) | インストーラー<br>Installer |
 |---|---|---|
-| **Mac**（macOS 11+, Apple Silicon / Intel） | `CompAnatomyLab2-0.2.0-mac.zip` | `CompAnatomyLab2-0.2.0-mac.pkg` |
-| **Windows**（10 / 11, 64bit）⚠️未検証 | `CompAnatomyLab2-0.2.0-win64.zip` | `CompAnatomyLab2-0.2.0-win64.exe` |
+| **Mac**<br>macOS 11+, Apple Silicon / Intel | `CompAnatomyLab2-0.2.0-mac.zip` | `CompAnatomyLab2-0.2.0-mac.pkg` |
+| **Windows** ⚠️ 未検証 / untested<br>10 / 11, 64-bit | `CompAnatomyLab2-0.2.0-win64.zip` | `CompAnatomyLab2-0.2.0-win64.exe` |
 
-- 紹介記事（日本語）：**[1台で21機種のコンプを組み立てて学ぶ](https://jpk.seesaa.net/article/522006512.html)**
-- インストール方法：**[INSTALL.md](INSTALL.md)**（日本語 / English）
-- ⚠️ **Windows 版は実機での動作確認ができていません**（自動ビルドで作成。VST3 と Standalone）。 / The Windows build is untested on real hardware.
-- Apple の公証・Windows のコード署名をしていないため、初回のみ警告が出ます。
-- 不具合・要望は [Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues) へ。
+| | 日本語 | English |
+|---|---|---|
+| インストール方法 / How to install | [INSTALL.md（日本語）](INSTALL.md#日本語) | [INSTALL.md (English)](INSTALL.md#english) |
+| 紹介記事 / Article | [1台で21機種のコンプを組み立てて学ぶ](https://jpk.seesaa.net/article/522006512.html) | — |
+| 不具合・要望 / Bugs & requests | [Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues) | [Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues) |
+
+> **ご注意 / Notes**
+> - ベータ版です。Mac の Ableton Live で動作確認済み。<br>This is a beta, tested with Ableton Live on Mac.
+> - ⚠️ Windows 版は自動ビルドのみで、実機での動作確認はできていません（VST3 / Standalone）。<br>The Windows build (VST3 / Standalone) is built automatically and has not been tested on real hardware.
+> - Apple の公証・Windows のコード署名をしていないため、初回のみ警告が出ます（回避手順は INSTALL.md）。<br>The builds are not notarized or code-signed, so you will see a one-time warning (see INSTALL.md).
 
 ---
 
-## 主な機能
+## 日本語
+
+### 主な機能
 
 - **7 つのブロックでコンプを組み立てる（BUILD）**：① INPUT ② SIDECHAIN ③ DETECTOR ④ GAIN LAW ⑤ TIMING ⑥ ELEMENT ⑦ OUTPUT の「方式」を差し替える
   - 検出：Peak / RMS / Diode+RC / Peak+RMS、フィードフォワード / フィードバック
@@ -45,19 +57,46 @@ by Johan Plus Kei — コンプの中身を「組み立てて・見て・聴い�
 
 ---
 
-## ビルド
+## English
+
+### Features
+
+- **Build a compressor from seven blocks (BUILD)**: swap the method used in ① INPUT ② SIDECHAIN ③ DETECTOR ④ GAIN LAW ⑤ TIMING ⑥ ELEMENT ⑦ OUTPUT.
+  - Detection: Peak / RMS / Diode+RC / Peak+RMS, feed-forward / feedback
+  - Gain law: Ideal / FET / Opto / Vari-Mu / Diode / Limiter / Rider / Spectral / Clipper, Upward, GR Limit
+  - Timing: single / two-stage (program-dependent) / optical cell / Auto / Precise (look-ahead) / Dual average, release curves, look-behind
+  - Element and output stage: Clean / FET / Tube / Opto / Diode, transformer (Nickel / Iron / Steel), harmonics, 1x / 2x / 4x oversampling, two units in series
+- **21 MODELS**: FET 76, Opto 2A / 3A, Vari-Mu 670, Bus VCA G, VCA 160 / 2500, Channel VCA E, Diode 254, EL 8, Tube Opto 1B, Digital DS-1, Dual Opto + VCA, Limiter, Clipper, Spectral, Upward, OTT 3-Band, Rider and more (names refer to the family of hardware they are based on; constants are literature-based starting values).
+- **PANEL**: shows only the controls the real unit has, with its scales and colours. It is see-through, so you can compare it with BUILD underneath; BUILD highlights what the panel is moving.
+- **Displays**: TIME (in/out level and GR), SPECTRUM (gain change per frequency), TRANSFER (static curve, draggable), GR WAVE (how Attack / Release are defined), DYNAMICS (PEAK / RMS / CREST / RANGE), HARMONICS (harmonics and aliasing), SC FILTER (what the detector hears), LOUDNESS (M / S / I, true peak, PSR / PLR).
+- **IDEAL compare**: switch to a neutral compressor with about the same gain reduction, so you hear only the model's character.
+- **26 LESSONS** (each loads its settings) and **EAR training**: Attack / Release / Ratio / guess the model.
+- **62 presets** (by model and by use) plus user presets, ◀ ▶ stepping, A / B / C / D slots and parameter lock.
+- Even when stopped, the last audio is re-processed with the current settings and shown. Auto gain and Delta listening.
+- ↑↓ keys step values (Shift for fine steps), 14 skins, Japanese / English UI.
+
+![BUILD](docs/screenshot-build.png)
+
+![Spectral compression](docs/screenshot-spectral.png)
+
+![Lesson](docs/screenshot-lesson.png)
+
+---
+
+## 開発者向け / For developers
 
 ```bash
-./build.sh            # 手元の JUCE（~/Documents/jpkplugins/JUCE）を使う。無ければ CMake が JUCE 9.0.4 を取得
+./build.sh   # 手元の JUCE（~/Documents/jpkplugins/JUCE）を使う。無ければ CMake が JUCE 9.0.4 を取得
+             # uses local JUCE (~/Documents/jpkplugins/JUCE); otherwise CMake fetches JUCE 9.0.4
 ```
 
-- Windows は GitHub Actions（`.github/workflows/build-win.yml`、手動実行）で VST3 / Standalone をビルドし、Inno Setup でインストーラーを作成
-- Mac のインストーラー作成：`packaging/mac/build_pkg.sh [version]` ／ `packaging/mac/build_zip.sh [version]`（出力は `dist/`）
+- Windows：GitHub Actions（`.github/workflows/build-win.yml`、手動実行）で VST3 / Standalone をビルドし、Inno Setup でインストーラーを作成。<br>Windows: built by GitHub Actions (`.github/workflows/build-win.yml`, run manually); the installer is made with Inno Setup.
+- Mac：`packaging/mac/build_pkg.sh [version]` ／ `packaging/mac/build_zip.sh [version]`（出力は `dist/` / output in `dist/`）
 
-## ライセンス
+### ライセンス / License
 
-JUCE は **Starter ライセンス** で使用。配布物はフリーウェア使用許諾（`packaging/mac/resources/license.txt`）に従います。
-ソースは学習目的で公開していますが、無断での再配布・販売はできません。
+- JUCE は **Starter ライセンス** で使用。配布物はフリーウェア使用許諾（`packaging/mac/resources/license.txt`）に従います。ソースは学習目的で公開していますが、無断での再配布・販売はできません。
+- JUCE is used under the **Starter licence**. The binaries are freeware under `packaging/mac/resources/license.txt`. The source is public for learning; redistribution or sale without permission is not allowed.
 
 ---
 
