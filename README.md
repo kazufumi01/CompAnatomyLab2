@@ -6,7 +6,7 @@ by Johan Plus Kei — コンプの中身を「組み立てて・見て・聴い�
 
 ## ⬇️ ダウンロード（ベータ版）/ Download (Beta)
 
-**[最新版をダウンロード / Download latest](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)** — 期間限定ベータ版無料配布中 / Free beta
+**[最新版をダウンロード / Download latest](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)** — 無料配布中 / Free
 
 | | 手動インストール（おすすめ） | インストーラー |
 |---|---|---|
@@ -64,6 +64,6 @@ JUCE は **Starter ライセンス** で使用。配布物はフリーウェア�
 
 ## Support / 支援
 
-Compressor Anatomy Lab 2 is free during the beta. If it helps your mixing or your classes, you can support development with a one-time tip via [PayPal](https://paypal.me/johanpluskei). More ways to help: <https://kazufumi01.github.io/support/>
+Compressor Anatomy Lab 2 is free. If it helps your mixing or your classes, you can support development with a one-time tip via [PayPal](https://paypal.me/johanpluskei). More ways to help: <https://kazufumi01.github.io/support/>
 
-Compressor Anatomy Lab 2 はベータ期間中、無料です。ミックスや授業で役立ったら、[PayPal](https://paypal.me/johanpluskei) からの投げ銭で開発を支えていただけるとうれしいです。
+Compressor Anatomy Lab 2 は無料です。ミックスや授業で役立ったら、[PayPal](https://paypal.me/johanpluskei) からの投げ銭で開発を支えていただけるとうれしいです。
