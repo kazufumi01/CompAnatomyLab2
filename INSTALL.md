@@ -1,8 +1,8 @@
-# Compressor Anatomy Lab 2 β — インストール方法 / Installation
+# Compressor Anatomy Lab 2 — インストール方法 / Installation
 
-> **ベータ版です。** Mac の Ableton Live で動作確認済み。
+> Mac の Ableton Live で動作確認済み。
 > **Windows 版は実機での動作確認ができていません**（自動ビルドで作成）。
-> **Beta.** Tested with Ableton Live on Mac.
+> Tested with Ableton Live on Mac.
 > **The Windows build of Lab 2 has NOT been tested on a real Windows machine.**
 > 不具合は / Problems: [Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues)
 
