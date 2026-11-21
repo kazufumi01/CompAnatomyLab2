@@ -10,10 +10,10 @@
 
 | ファイル | 内容 |
 |---|---|
-| `CompAnatomyLab2-0.2.0-mac.zip` | Mac・手動インストール（おすすめ） |
-| `CompAnatomyLab2-0.2.0-mac.pkg` | Mac・インストーラー（ターミナルを使いたくない人向け） |
-| `CompAnatomyLab2-0.2.0-win64.zip` | Windows・手動インストール（未検証） |
-| `CompAnatomyLab2-0.2.0-win64.exe` | Windows・インストーラー（未検証） |
+| [`CompAnatomyLab2-0.2.0-mac.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.0-mac.zip) | Mac・手動インストール（おすすめ） |
+| [`CompAnatomyLab2-0.2.0-mac.pkg`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.0-mac.pkg) | Mac・インストーラー（ターミナルを使いたくない人向け） |
+| [`CompAnatomyLab2-0.2.0-win64.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.0-win64.zip) | Windows・手動インストール（未検証） |
+| [`CompAnatomyLab2-0.2.0-win64.exe`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.0-win64.exe) | Windows・インストーラー（未検証） |
 
 ---
 
