@@ -9,6 +9,8 @@
 
 ![Compressor Anatomy Lab 2 — PANEL](docs/screenshot-panel.png)
 
+🔗 **他の学習ラボ・解説記事 / More learning labs & articles：** [Learning labs（GitHub Pages）](https://kazufumi01.github.io/) ・ [目次・解説記事（Seesaa・日本語）](https://jpk.seesaa.net/article/521891797.html)
+
 ## ダウンロード / Download
 
 **[最新版をダウンロード / Download latest (0.2.0 beta)](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)**
