@@ -1,6 +1,6 @@
-# Compressor Anatomy Lab 2 β
+# Compressor Anatomy Lab 2
 
-**by Johan Plus Kei** · VST3 / AU / Standalone · 無料ベータ / Free beta
+**by Johan Plus Kei** · VST3 / AU / Standalone · 無料配布中 / Free download
 
 🇯🇵 コンプの中身を「組み立てて・見て・聴いて」学べるプラグイン。1 台で 21 機種のコンプを、7 つのブロックの組み合わせとして再現します。
 🇬🇧 A plug-in for learning compressors by building, seeing and hearing them. It recreates 21 compressor types as combinations of seven building blocks.
@@ -13,7 +13,7 @@
 
 ## ダウンロード / Download
 
-**[最新版をダウンロード / Download latest (0.2.0 beta)](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)**
+**[最新版をダウンロード / Download latest (0.2.0)](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)**
 
 | | 手動インストール（おすすめ）<br>Manual (recommended) | インストーラー<br>Installer |
 |---|---|---|
@@ -27,7 +27,7 @@
 | 不具合・要望 / Bugs & requests | [Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues) | [Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues) |
 
 > **ご注意 / Notes**
-> - ベータ版です。Mac の Ableton Live で動作確認済み。<br>This is a beta, tested with Ableton Live on Mac.
+> - Mac の Ableton Live で動作確認済み。<br>Tested with Ableton Live on Mac.
 > - ⚠️ Windows 版は自動ビルドのみで、実機での動作確認はできていません（VST3 / Standalone）。<br>The Windows build (VST3 / Standalone) is built automatically and has not been tested on real hardware.
 > - Apple の公証・Windows のコード署名をしていないため、初回のみ警告が出ます（回避手順は INSTALL.md）。<br>The builds are not notarized or code-signed, so you will see a one-time warning (see INSTALL.md).
 
