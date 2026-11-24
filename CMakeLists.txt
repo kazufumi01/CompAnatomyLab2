@@ -5,7 +5,7 @@ if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
 endif()
 # Windows: static C++ runtime (no VC++ redistributable needed)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-project(CompAnatomyLab2 VERSION 0.2.0)
+project(CompAnatomyLab2 VERSION 0.2.1)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

@@ -45,7 +45,7 @@ private:
     theme::LookAndFeel lnf;
     ParamHelp ph { proc };
 
-    juce::TextButton listenBtn, langBtn, autoBtn, deltaBtn, bypassBtn, presetBtn, lockBtn, idealBtn, slotBtn[4], prevBtn, nextBtn;
+    juce::TextButton listenBtn, langBtn, autoBtn, deltaBtn, bypassBtn, presetBtn, lockBtn, idealBtn, slotBtn[4], prevBtn, nextBtn, modelPrevBtn, modelNextBtn;
     int idsFor = -2;
     juce::ComboBox modelBox;
     TimeView timeView { ph };
@@ -71,5 +71,5 @@ private:
 class CompEditor : public ScalingEditor<CompView, CompProcessor>
 {
 public:
-    explicit CompEditor (CompProcessor& p) : ScalingEditor (p, 1160, 760, "companatomy2.zoom") {}
+    explicit CompEditor (CompProcessor& p) : ScalingEditor (p, 1160, 760, "companatomy2_dev.zoom") {}
 };

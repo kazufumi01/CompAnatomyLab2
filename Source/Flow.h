@@ -17,6 +17,74 @@ struct ChoiceBox : public ResetCombo
     ParamHelp& ph; juce::String paramID;
 };
 
+// Left / Right stepper arrow button with clean vector chevron drawing
+struct ArrowStepBtn : public juce::Button
+{
+    explicit ArrowStepBtn (bool pointLeft) : juce::Button ({}), left (pointLeft) {}
+    void paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
+    {
+        const float w = (float) getWidth(), h = (float) getHeight(), cx = w * 0.5f, cy = h * 0.5f;
+        if (shouldDrawButtonAsHighlighted || shouldDrawButtonAsDown)
+        {
+            g.setColour (juce::Colour (shouldDrawButtonAsDown ? 0x35ffffff : 0x18ffffff));
+            g.fillRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 2.0f);
+        }
+        juce::Path p;
+        const float aw = 3.0f, ah = 4.0f;
+        if (left)
+        {
+            p.startNewSubPath (cx + aw * 0.5f, cy - ah);
+            p.lineTo (cx - aw * 0.5f, cy);
+            p.lineTo (cx + aw * 0.5f, cy + ah);
+        }
+        else
+        {
+            p.startNewSubPath (cx - aw * 0.5f, cy - ah);
+            p.lineTo (cx + aw * 0.5f, cy);
+            p.lineTo (cx - aw * 0.5f, cy + ah);
+        }
+        const bool en = isEnabled();
+        g.setColour (juce::Colour (en ? (shouldDrawButtonAsHighlighted ? 0xffffffff : 0xffc0c6ce) : 0x30c0c6ce));
+        g.strokePath (p, juce::PathStrokeType (1.6f, juce::PathStrokeType::mitered, juce::PathStrokeType::rounded));
+    }
+    bool left = false;
+};
+
+// ChoiceBox wrapped with compact left / right arrow stepper buttons
+struct ChoiceWithArrows : public juce::Component
+{
+    ChoiceWithArrows (ParamHelp& h, const char* id, const juce::StringArray& items)
+        : box (h, id, items), prevBtn (true), nextBtn (false)
+    {
+        addAndMakeVisible (box);
+        addAndMakeVisible (prevBtn);
+        addAndMakeVisible (nextBtn);
+        prevBtn.onClick = [this]
+        {
+            const int id = box.getSelectedId();
+            if (id > 1) box.setSelectedId (id - 1);
+            else if (box.getNumItems() > 0) box.setSelectedId (box.getNumItems());
+        };
+        nextBtn.onClick = [this]
+        {
+            const int id = box.getSelectedId();
+            if (id < box.getNumItems()) box.setSelectedId (id + 1);
+            else if (box.getNumItems() > 0) box.setSelectedId (1);
+        };
+    }
+    void sync() { box.sync(); }
+    void setEnabled (bool e) { juce::Component::setEnabled (e); box.setEnabled (e); prevBtn.setEnabled (e); nextBtn.setEnabled (e); }
+    void resized() override
+    {
+        const int bw = 10;
+        prevBtn.setBounds (0, 0, bw, getHeight());
+        box.setBounds (bw + 1, 0, getWidth() - 2 * (bw + 1), getHeight());
+        nextBtn.setBounds (getWidth() - bw, 0, bw, getHeight());
+    }
+    ChoiceBox box;
+    ArrowStepBtn prevBtn, nextBtn;
+};
+
 // =============================================================================
 //  SIGNAL FLOW (BUILD): ① input → ② sidechain → ③ detector → ④ gain law → ⑤ timing → ⑥ element → ⑦ output.
 //  Each block has a method menu; values the chosen method fixes are greyed with the reason.
@@ -28,11 +96,12 @@ public:
         : ph (h), inputV (h, "INPUT"), hpfV (h, "SC HPF"), tiltV (h, "TILT"), linkV (h, "LINK"), bandV (h, "BAND"), bandHzV (h, "BAND Hz"), bandQV (h, "BAND Q"),
           rmsV (h, "RMS WIN"), thrV (h, "THRESH"), ratioV (h, "RATIO"), kneeV (h, "KNEE"),
           attV (h, "ATTACK"), relV (h, "RELEASE"), lookV (h, "LOOK"), holdV (h, "HOLD"), slowV (h, "SLOW x"), amtV (h, "AMOUNT"),
-          driveV (h, "DRIVE"), makeV (h, "MAKEUP"), mixV (h, "DRY / WET"),
+          driveV (h, "DRIVE"), analogV (h, "ANALOG"), makeV (h, "MAKEUP"), mixV (h, "DRY / WET"),
           upThrV (h, "UP THR"), upRatioV (h, "UP RATIO"), xLoV (h, "XOVER LO"), xHiV (h, "XOVER HI"), gLoV (h, "LO"), gMidV (h, "MID"), gHiV (h, "HI"),
           relCurveV (h, "REL CURVE"), crestV (h, "CREST"), grLimV (h, "GR LIMIT"), upRangeV (h, "UP RANGE"),
           stereoV (h, "STEREO"), sLoV (h, "LO"), sMidV (h, "MID"), sHiV (h, "HI"), preThrV (h, "PRE THR"),
           xfSeg (h, { "Off", "On" }), srcSeg (h, { "Internal", "External" }), onlySeg (h, { "Full", "Band only" }), topoSeg (h, { "Feed-fwd", "Feedback" }), osSeg (h, { "1x", "2x", "4x" }), upSeg (h, { "Off", "On" }), mbSeg (h, { "Single", "3-band" }), scMbSeg (h, { "1 band", "3 bands" }), preSeg (h, { "Off", "Opto 2:1" }),
+          dynModeSeg (h, { "Comp", "Exp", "Gate" }),
           detBox (h, pid::detector, detNames()), lawBox (h, pid::law, lawNames()), timBox (h, pid::timing, timingNames()),
           elBox (h, pid::element, elementNames()), outBox (h, pid::outStage, outNames())
     {
@@ -47,13 +116,18 @@ public:
         dv (rmsV, pid::rmsWin, [] (float v) { return fmtTime (v); });
         dv (thrV, pid::threshold, [] (float v) { return minus (v) + " dB"; });
         dv (ratioV, pid::ratio, [] (float v) { return (v < 10 ? juce::String (v, 1) : juce::String (juce::roundToInt (v))) + " : 1"; });
-        dv (kneeV, pid::knee, [] (float v) { return juce::String (v, 1) + " dB"; });
+        dv (kneeV, pid::knee, [this] (float v) {
+            auto p = ph.proc.currentParams();
+            const double eff = mod::effectiveKnee (p);
+            return juce::String (v, 1) + " (" + juce::String (eff, 1) + ")";
+        });
         dv (attV, pid::attack, [] (float v) { return fmtTime (v); });   dv (relV, pid::release, [] (float v) { return fmtTime (v); });
         dv (lookV, pid::lookahead, [] (float v) { return minus (v) + " ms"; });
         dv (holdV, pid::hold, [] (float v) { return juce::String (v, 1) + " ms"; });
         dv (slowV, pid::slowMult, [] (float v) { return juce::String (v, 1) + " x"; });
         dv (amtV, pid::slowAmt, [] (float v) { return juce::String (juce::roundToInt (v)) + " %"; });
         dv (driveV, pid::drive, [] (float v) { return sgnDb (v); });
+        dv (analogV, pid::analog, [] (float v) { return juce::String (juce::roundToInt (v)) + " %"; });
         dv (makeV, pid::makeup, [] (float v) { return sgnDb (v); });
         dv (mixV, pid::mix, [] (float v) { return juce::String (juce::roundToInt (v)) + " %"; });
         dv (stereoV, pid::stereo, names ({ "L / R", "Mid / Side", "Mid only", "Side only" }));
@@ -70,16 +144,24 @@ public:
         for (auto* gv : { &gLoV, &gMidV, &gHiV }) gv->format = [] (float v) { return fmtDb (v); };
         gLoV.compact = gMidV.compact = gHiV.compact = true; gLoV.setParam (pid::mbLo); gMidV.setParam (pid::mbMid); gHiV.setParam (pid::mbHi);
         for (auto* gv : { &gLoV, &gMidV, &gHiV }) addAndMakeVisible (*gv);
-        xfSeg.setParam (pid::inXfmr); srcSeg.setParam (pid::scSource); onlySeg.setParam (pid::bandOnly); topoSeg.setParam (pid::topology); osSeg.setParam (pid::os); upSeg.setParam (pid::upOn); mbSeg.setParam (pid::mb); scMbSeg.setParam (pid::scMb); preSeg.setParam (pid::pre);
-        for (auto* c : { (juce::Component*) &xfSeg, (juce::Component*) &srcSeg, (juce::Component*) &onlySeg, (juce::Component*) &topoSeg, (juce::Component*) &osSeg, (juce::Component*) &upSeg, (juce::Component*) &mbSeg, (juce::Component*) &scMbSeg, (juce::Component*) &preSeg,
+        xfSeg.setParam (pid::inXfmr); srcSeg.setParam (pid::scSource); onlySeg.setParam (pid::bandOnly); topoSeg.setParam (pid::topology); osSeg.setParam (pid::os); upSeg.setParam (pid::upOn); mbSeg.setParam (pid::mb); scMbSeg.setParam (pid::scMb); preSeg.setParam (pid::pre); dynModeSeg.setParam (pid::dynMode);
+        for (auto* c : { (juce::Component*) &xfSeg, (juce::Component*) &srcSeg, (juce::Component*) &onlySeg, (juce::Component*) &topoSeg, (juce::Component*) &osSeg, (juce::Component*) &upSeg, (juce::Component*) &mbSeg, (juce::Component*) &scMbSeg, (juce::Component*) &preSeg, (juce::Component*) &dynModeSeg,
                          (juce::Component*) &detBox, (juce::Component*) &lawBox, (juce::Component*) &timBox, (juce::Component*) &elBox, (juce::Component*) &outBox })
             addAndMakeVisible (*c);
+
+        autoRelBtn.onClick = [this] {
+            const bool on = ph.value (pid::autoRel) > 0.5f;
+            ph.setGesture (pid::autoRel, on ? 0.0f : 1.0f);
+            refresh();
+        };
+        addAndMakeVisible (autoRelBtn);
+        setHelp (autoRelBtn, "AUTO RELEASE", "入力信号の長さ・深さに応じて自動でリリース時間を調整", "Auto release: adapts release time dynamically based on program material");
+        setHelp (dynModeSeg, "DYNAMICS MODE", "Comp（圧縮）、Exp（エキスパンダー：しきい値以下を下げる）、Gate（ノイズゲート：しきい値以下を遮断）", "Dynamics mode: Compressor, Expander, or Noise Gate");
 
         // values a method fixes: greyed, with the reason
         auto T = [this] (const char* j, const char* e) { return ph.tr (j, e); };
         rmsV.lockNote = [this, T] { const int d = (int) ph.value (pid::detector); return (d == mod::DetRMS || d == mod::DetCrest) ? juce::String() : T ("RMS のときだけ", "RMS only"); };
-        kneeV.lockNote = [this, T] { const int l = (int) ph.value (pid::law);
-                                     return (l == mod::LawIdeal || l == mod::LawSpectral || l == mod::LawClip) ? juce::String() : l == mod::LawFET ? T ("比が決める", "set by the ratio") : l == mod::LawLimit ? T ("硬い（0 dB）", "hard (0 dB)") : T ("素子が決める", "set by the element"); };
+        kneeV.lockNote = nullptr; // All laws can adjust Knee now! Real-time effective knee shown.
         ratioV.lockNote = [this] { return (int) ph.value (pid::law) == mod::LawLimit ? juce::String::fromUTF8 ("\xe2\x88\x9e : 1") : juce::String(); };
         upThrV.lockNote = [this, T] { return ph.value (pid::upOn) > 0.5f ? juce::String() : T ("Upward Off", "upward off"); };
         upRatioV.lockNote = upThrV.lockNote; upRangeV.lockNote = upThrV.lockNote;
@@ -110,10 +192,10 @@ public:
 
         ctlIds = { { &inputV, pid::input }, { &hpfV, pid::scHpf }, { &tiltV, pid::scTilt }, { &linkV, pid::link }, { &bandV, pid::band }, { &bandHzV, pid::bandHz }, { &bandQV, pid::bandQ },
                    { &rmsV, pid::rmsWin }, { &thrV, pid::threshold }, { &ratioV, pid::ratio }, { &kneeV, pid::knee }, { &attV, pid::attack }, { &relV, pid::release }, { &lookV, pid::lookahead },
-                   { &holdV, pid::hold }, { &slowV, pid::slowMult }, { &amtV, pid::slowAmt }, { &driveV, pid::drive }, { &makeV, pid::makeup }, { &mixV, pid::mix }, { &stereoV, pid::stereo },
+                   { &holdV, pid::hold }, { &slowV, pid::slowMult }, { &amtV, pid::slowAmt }, { &driveV, pid::drive }, { &analogV, pid::analog }, { &makeV, pid::makeup }, { &mixV, pid::mix }, { &stereoV, pid::stereo },
                    { &upThrV, pid::upThr }, { &upRatioV, pid::upRatio }, { &relCurveV, pid::relCurve }, { &crestV, pid::crest }, { &grLimV, pid::grLimit }, { &upRangeV, pid::upRange },
                    { &xLoV, pid::xLo }, { &xHiV, pid::xHi }, { &gLoV, pid::mbLo }, { &gMidV, pid::mbMid }, { &gHiV, pid::mbHi }, { &preThrV, pid::preThr },
-                   { &topoSeg, pid::topology }, { &osSeg, pid::os }, { &timBox, pid::timing }, { &outBox, pid::outStage } };
+                   { &topoSeg, pid::topology }, { &osSeg, pid::os }, { &timBox.box, pid::timing }, { &outBox.box, pid::outStage }, { &dynModeSeg, pid::dynMode } };
         blocks = {
             { "\xe2\x91\xa0", "INPUT", "入力", "input", "INPUT BLOCK", "入力ゲインと入力トランス。ゲインは検出器と素子の両方の前にあり、Threshold との相対関係を変える。Threshold ノブのない機種（FET 76・Opto 2A）は、ここで信号を押し込んで圧縮量を決める。トランスは低域だけを飽和させる",
               "Input gain and input transformer. The gain sits before both the detector and the element, so it moves the signal against Threshold. Units without a Threshold knob (FET 76, Opto 2A) set the amount of compression here. The transformer saturates only the lows" },
@@ -173,6 +255,7 @@ public:
                  "Two stages in series: an opto leveller (fixed 2:1, RMS, feedback, 15 ms attack, 80 ms release plus a slow part) in front of the main compressor. The first evens out the level slowly, the second catches peaks. Two shallow passes sound more natural than one deep one (the Shadow Hills layout). The violet dots in TIME are the pre-stage GR. Not available in 3-band");
         setHelp (preThrV, "PRE THRESHOLD", "前段（光学 2:1）の Threshold。前段の GR が 1〜3 dB になるあたりから始める", "Threshold of the pre-stage (opto 2:1). Start where it shows 1–3 dB of GR");
         setHelp (driveV, "DRIVE", "素子に入るレベル（出口で同じだけ戻す）。上げるほど歪みが増える", "Level into the element (compensated at its output). More drive = more distortion");
+        setHelp (analogV, "ANALOG EFFECT", "アナログモデリングの効果量。0%＝モデリングなし、100%＝標準、100%以上では素子と出力段の色付けをさらに強める", "Analog modeling amount. 0% = no modeling, 100% = standard, above 100% strengthens element and output-stage coloration");
         setHelp (osSeg, "OVERSAMPLE", "内部の処理を 2 倍・4 倍のサンプルレートで行う。歪みの折り返しと、速いゲイン変化の折り返しが減る", "Runs the engine at 2x / 4x: less aliasing from distortion and fast gain changes");
         setHelp (outBox, "OUTPUT STAGE", "出力段の色付け", "Output stage colour");
         setHelp (makeV, "MAKEUP", "圧縮で下がった音量を戻す", "Brings back the level lost to compression");
@@ -213,12 +296,15 @@ public:
         bandHzV.setBounds (half (1, 3, 0)); bandQV.setBounds (half (1, 3, 1)); onlySeg.setBounds (X (1), y0 + 4 * 30 + 8, w, 16); stereoV.setBounds (full (0, 4));
         detBox.setBounds (X (2), y0, w, 22); topoSeg.setBounds (seg (2, 1)); rmsV.setBounds (half (2, 2, 0)); crestV.setBounds (half (2, 2, 1));
         scMbSeg.setBounds (seg (2, 3)); sLoV.setBounds (X (2), rowY (2, 4), 40, 29); sMidV.setBounds (X (2) + 44, rowY (2, 4), 40, 29); sHiV.setBounds (X (2) + 88, rowY (2, 4), 40, 29);
-        lawBox.setBounds (X (3), y0, w, 22); thrV.setBounds (half (3, 1, 0)); ratioV.setBounds (half (3, 1, 1)); kneeV.setBounds (half (3, 2, 0));
-        upSeg.setBounds (X (3) + hw + 4, rowY (3, 2) + 11, hw, 18); upThrV.setBounds (half (3, 3, 0)); upRatioV.setBounds (half (3, 3, 1));
-        grLimV.setBounds (half (3, 4, 0)); upRangeV.setBounds (half (3, 4, 1));
-        timBox.setBounds (X (4), y0, w, 22); attV.setBounds (half (4, 1, 0)); relV.setBounds (half (4, 1, 1)); lookV.setBounds (half (4, 2, 0)); holdV.setBounds (half (4, 2, 1));
+        lawBox.setBounds (X (3), y0, w, 20); dynModeSeg.setBounds (X (3), y0 + 22, w, 16);
+        thrV.setBounds (X (3), y0 + 40, hw, 25); ratioV.setBounds (X (3) + hw + 4, y0 + 40, hw, 25);
+        kneeV.setBounds (X (3), y0 + 67, hw, 25); upSeg.setBounds (X (3) + hw + 4, y0 + 72, hw, 17);
+        upThrV.setBounds (X (3), y0 + 94, hw, 25); upRatioV.setBounds (X (3) + hw + 4, y0 + 94, hw, 25);
+        grLimV.setBounds (X (3), y0 + 121, hw, 25); upRangeV.setBounds (X (3) + hw + 4, y0 + 121, hw, 25);
+        timBox.setBounds (X (4), y0, w - 20, 22); autoRelBtn.setBounds (X (4) + w - 18, y0 + 1, 18, 20);
+        attV.setBounds (half (4, 1, 0)); relV.setBounds (half (4, 1, 1)); lookV.setBounds (half (4, 2, 0)); holdV.setBounds (half (4, 2, 1));
         slowV.setBounds (half (4, 3, 0)); amtV.setBounds (half (4, 3, 1)); relCurveV.setBounds (full (4, 4));
-        elBox.setBounds (X (5), y0, w, 22); driveV.setBounds (full (5, 1)); osSeg.setBounds (seg (5, 2)); preSeg.setBounds (seg (5, 3)); preThrV.setBounds (full (5, 4));
+        elBox.setBounds (X (5), y0, w, 22); driveV.setBounds (half (5, 1, 0)); analogV.setBounds (half (5, 1, 1)); osSeg.setBounds (seg (5, 2)); preSeg.setBounds (seg (5, 3)); preThrV.setBounds (full (5, 4));
         outBox.setBounds (X (6), y0, w, 22); makeV.setBounds (full (6, 1)); mixV.setBounds (full (6, 2));
         gLoV.setBounds (X (6), rowY (6, 3), 40, 29); gMidV.setBounds (X (6) + 44, rowY (6, 3), 40, 29); gHiV.setBounds (X (6) + 88, rowY (6, 3), 40, 29);
     }
@@ -226,6 +312,10 @@ public:
     void refresh()
     {
         for (auto* b : { &detBox, &lawBox, &timBox, &elBox, &outBox }) b->sync();
+        dynModeSeg.repaint();
+        const bool aRelOn = ph.value (pid::autoRel) > 0.5f;
+        autoRelBtn.setColour (juce::TextButton::buttonColourId, aRelOn ? juce::Colour (0xffe67e22) : juce::Colour (0x20ffffff));
+        autoRelBtn.setColour (juce::TextButton::textColourOffId, aRelOn ? juce::Colours::white : juce::Colour (0xffb5bcc4));
         {                                                               // Spectral skips ③ ⑤ ⑥ ⑦ and the topology; Clipper skips ③ and ⑤
             const int law = (int) ph.value (pid::law); const bool sp = law == mod::LawSpectral, cl = law == mod::LawClip;
             auto en = [] (juce::Component& c, bool on) { if (c.isEnabled() != on) { c.setEnabled (on); c.setAlpha (on ? 1.0f : 0.4f); } };
@@ -300,13 +390,14 @@ public:
 private:
     struct Block { const char* num; const char* en; const char* subJa; const char* subEn; const char* ht; const char* hj; const char* he; juce::Rectangle<int> r; };
     ParamHelp& ph;
-    DragValue inputV, hpfV, tiltV, linkV, bandV, bandHzV, bandQV, rmsV, thrV, ratioV, kneeV, attV, relV, lookV, holdV, slowV, amtV, driveV, makeV, mixV, upThrV, upRatioV, xLoV, xHiV, gLoV, gMidV, gHiV, relCurveV, crestV, grLimV, upRangeV, stereoV, sLoV, sMidV, sHiV, preThrV;
-    Seg xfSeg, srcSeg, onlySeg, topoSeg, osSeg, upSeg, mbSeg, scMbSeg, preSeg;
+    DragValue inputV, hpfV, tiltV, linkV, bandV, bandHzV, bandQV, rmsV, thrV, ratioV, kneeV, attV, relV, lookV, holdV, slowV, amtV, driveV, analogV, makeV, mixV, upThrV, upRatioV, xLoV, xHiV, gLoV, gMidV, gHiV, relCurveV, crestV, grLimV, upRangeV, stereoV, sLoV, sMidV, sHiV, preThrV;
+    Seg xfSeg, srcSeg, onlySeg, topoSeg, osSeg, upSeg, mbSeg, scMbSeg, preSeg, dynModeSeg;
+    juce::TextButton autoRelBtn { "A" };
     std::vector<std::pair<juce::Component*, const char*>> ctlIds;
 public:
     juce::StringArray panelIds;                 // parameters the current model's PANEL moves (set by the editor)
 private:
-    ChoiceBox detBox, lawBox, timBox, elBox, outBox;
+    ChoiceWithArrows detBox, lawBox, timBox, elBox, outBox;
     std::vector<Block> blocks;
 };
 
@@ -331,7 +422,7 @@ public:
             {
                 const auto& p = ms[(size_t) mi].p;
                 const auto label = ph.proc.presetLabel (ph.ja()), note = ph.proc.presetNote (ph.ja());
-                title = "MODEL  " + juce::String (ms[(size_t) mi].name) + juce::String::fromUTF8 ("　—　") + juce::String (ms[(size_t) mi].ref);
+                title = "MODEL  " + juce::String (ms[(size_t) mi].name);
                 const auto now = ph.proc.currentParams();
                 text = (label.isNotEmpty() ? "PRESET  " + label + (note.isNotEmpty() ? juce::String::fromUTF8 ("：") + note : juce::String()) + "\n\n" : juce::String())
                      + "| " + ph.tr ("ブロック", "Block") + " | " + ph.tr ("いまの方式", "Method now") + " |\n"

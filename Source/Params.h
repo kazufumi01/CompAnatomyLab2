@@ -17,7 +17,7 @@ static const char* law = "law";           static const char* threshold = "thresh
 static const char* timing = "timing";     static const char* attack = "attack";   static const char* release = "release";
 static const char* slowMult = "slowmult"; static const char* slowAmt = "slowamt"; static const char* hold = "hold";
 static const char* lookahead = "lookahead"; static const char* avg = "avg";
-static const char* element = "element";   static const char* drive = "drive";     static const char* os = "os";
+static const char* element = "element";   static const char* drive = "drive";     static const char* analog = "analog"; static const char* os = "os";
 static const char* outStage = "outstage"; static const char* makeup = "makeup";   static const char* mix = "mix";
 static const char* scListen = "sclisten"; static const char* output = "output";   static const char* autoGain = "autogain";
 static const char* delta = "delta";       static const char* bypass = "bypass";
@@ -27,12 +27,14 @@ static const char* mbLo = "mblo";         static const char* mbMid = "mbmid";   
 static const char* relCurve = "relcurve"; static const char* crest = "crest";     static const char* grLimit = "grlimit";
 static const char* stereo = "stereo";     static const char* scMb = "scmb";       static const char* scLo = "sclo"; static const char* scMid = "scmid"; static const char* scHi = "schi";
 static const char* pre = "prestage";   static const char* preThr = "prethr";
+static const char* autoRel = "autorel";   static const char* dynMode = "dynmode";
 }
 
 inline const juce::StringArray& hpfNames() { static const juce::StringArray n { "Off", "30 Hz", "60 Hz", "100 Hz", "150 Hz", "250 Hz", "400 Hz" }; return n; }
 inline double hpfHz (int idx) { static const double f[] { 0, 30, 60, 100, 150, 250, 400 }; return f[juce::jlimit (0, 6, idx)]; }
 inline const juce::StringArray& detNames()     { static const juce::StringArray n { "Peak", "RMS", "Diode + RC", "Peak + RMS" }; return n; }
 inline const juce::StringArray& lawNames()     { static const juce::StringArray n { "Ideal", "FET", "Opto", "Vari-Mu", "Diode", "Limiter", "Rider", "Spectral", "Clipper" }; return n; }
+inline const juce::StringArray& dynNames()     { static const juce::StringArray n { "Compressor", "Expander", "Gate" }; return n; }
 inline const juce::StringArray& timingNames()  { static const juce::StringArray n { "1-stage", "2-stage (program)", "Opto memory", "Auto", "Precise", "Dual average" }; return n; }
 inline const juce::StringArray& elementNames() { static const juce::StringArray n { "Clean VCA", "FET", "Tube push-pull", "Opto cell", "Diode bridge" }; return n; }
 inline const juce::StringArray& outNames()     { static const juce::StringArray n { "Clean", "Transformer", "Tube", "2nd harmonic", "3rd harmonic", "Nickel", "Iron", "Steel" }; return n; }
@@ -63,6 +65,7 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     fl (pid::slowAmt, "Slow amount", { 0.0f, 100.0f, 1.0f }, 50.0f, "%");          fl (pid::hold, "Hold", skew (0.0f, 50.0f, 0.1f, 8.0f), 0.0f, "ms");
     fl (pid::lookahead, "Lookahead", { -10.0f, 10.0f, 0.1f }, 0.0f, "ms");           fl (pid::avg, "Average time", skew (10.0f, 1000.0f, 1.0f, 120.0f), 100.0f, "ms");
     ch (pid::element, "Gain element", elementNames(), 0);                          fl (pid::drive, "Element drive", { -12.0f, 24.0f, 0.1f }, 0.0f, "dB");
+    fl (pid::analog, "Analog modeling effect", { 0.0f, 200.0f, 1.0f }, 100.0f, "%");
     ch (pid::os, "Oversampling", { "1x", "2x", "4x" }, 0);
     ch (pid::outStage, "Output stage", outNames(), 0);                             fl (pid::makeup, "Makeup", { -12.0f, 24.0f, 0.1f }, 0.0f, "dB");
     fl (pid::mix, "Mix", { 0.0f, 100.0f, 1.0f }, 100.0f, "%");
@@ -79,6 +82,8 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     fl (pid::scLo, "Detector low sensitivity", { -12.0f, 12.0f, 0.1f }, 0.0f, "dB"); fl (pid::scMid, "Detector mid sensitivity", { -12.0f, 12.0f, 0.1f }, 0.0f, "dB");
     fl (pid::scHi, "Detector high sensitivity", { -12.0f, 12.0f, 0.1f }, 0.0f, "dB");
     bl (pid::pre, "Pre-stage", false);                                             fl (pid::preThr, "Pre-stage threshold", { -40.0f, 0.0f, 0.1f }, -20.0f, "dB");
+    bl (pid::autoRel, "Auto release", false);
+    ch (pid::dynMode, "Dynamics mode", dynNames(), 0);
     return l;
 }
 
@@ -92,12 +97,13 @@ inline std::vector<std::pair<const char*, float>> modelValues (const mod::Params
              { pid::law, (float) p.law }, { pid::threshold, (float) p.threshold }, { pid::ratio, (float) p.ratio }, { pid::knee, (float) p.knee },
              { pid::timing, (float) p.timing }, { pid::attack, (float) p.attack }, { pid::release, (float) p.release }, { pid::slowMult, (float) p.slowMult },
              { pid::slowAmt, (float) (p.slowAmt * 100.0) }, { pid::hold, (float) p.holdMs }, { pid::lookahead, (float) p.lookaheadMs }, { pid::avg, (float) p.avgMs },
-             { pid::element, (float) p.element }, { pid::drive, (float) p.driveDb }, { pid::os, p.os >= 4 ? 2.0f : p.os >= 2 ? 1.0f : 0.0f },
+             { pid::element, (float) p.element }, { pid::drive, (float) p.driveDb }, { pid::analog, (float) p.analogPct }, { pid::os, p.os >= 4 ? 2.0f : p.os >= 2 ? 1.0f : 0.0f },
              { pid::outStage, (float) p.out }, { pid::makeup, (float) p.makeup }, { pid::mix, (float) (p.mix * 100.0) },
              { pid::upOn, p.upOn ? 1.0f : 0.0f }, { pid::upThr, (float) p.upThreshold }, { pid::upRatio, (float) p.upRatio }, { pid::upRange, (float) p.upRange },
              { pid::mb, p.mb ? 1.0f : 0.0f }, { pid::xLo, (float) p.xLo }, { pid::xHi, (float) p.xHi },
              { pid::mbLo, (float) p.bandGain[0] }, { pid::mbMid, (float) p.bandGain[1] }, { pid::mbHi, (float) p.bandGain[2] },
              { pid::relCurve, (float) (p.relCurve * 100.0) }, { pid::crest, (float) p.crestDb }, { pid::grLimit, (float) p.grLimit },
              { pid::stereo, (float) p.stereo }, { pid::scMb, p.scMb ? 1.0f : 0.0f }, { pid::scLo, (float) p.scSens[0] }, { pid::scMid, (float) p.scSens[1] }, { pid::scHi, (float) p.scSens[2] },
-             { pid::pre, p.pre ? 1.0f : 0.0f }, { pid::preThr, (float) p.preThr } };
+             { pid::pre, p.pre ? 1.0f : 0.0f }, { pid::preThr, (float) p.preThr },
+             { pid::autoRel, p.autoRel ? 1.0f : 0.0f }, { pid::dynMode, (float) p.dynMode } };
 }

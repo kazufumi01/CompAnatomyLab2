@@ -13,12 +13,12 @@
 
 ## ダウンロード / Download
 
-**[最新版をダウンロード / Download latest (0.2.0 beta)](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)**
+**[最新版をダウンロード / Download latest (0.2.1)](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)**
 
 | | 手動インストール（おすすめ）<br>Manual (recommended) | インストーラー<br>Installer |
 |---|---|---|
-| **Mac**<br>macOS 11+, Apple Silicon / Intel | [`CompAnatomyLab2-0.2.0-mac.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.0-mac.zip) | [`CompAnatomyLab2-0.2.0-mac.pkg`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.0-mac.pkg) |
-| **Windows** ⚠️ 未検証 / untested<br>10 / 11, 64-bit | [`CompAnatomyLab2-0.2.0-win64.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.0-win64.zip) | [`CompAnatomyLab2-0.2.0-win64.exe`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.0-win64.exe) |
+| **Mac**<br>macOS 11+, Apple Silicon / Intel | [`CompAnatomyLab2-0.2.1-mac.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.1-mac.zip) | [`CompAnatomyLab2-0.2.1-mac.pkg`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.1-mac.pkg) |
+| **Windows** ⚠️ 未検証 / untested<br>10 / 11, 64-bit | [`CompAnatomyLab2-0.2.1-win64.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.1-win64.zip) | [`CompAnatomyLab2-0.2.1-win64.exe`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.1-win64.exe) |
 
 | | 日本語 | English |
 |---|---|---|

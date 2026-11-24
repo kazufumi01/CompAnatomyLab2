@@ -113,6 +113,8 @@ private:
 
     juce::StringArray locks;
     std::unique_ptr<mod::Multi> core;
+    mod::Params activeParams;
+    bool paramsValid = false;
     double sr = 0;
     std::vector<const std::atomic<float>*> raw;
     std::atomic<bool> scConnected { false };

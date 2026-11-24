@@ -287,15 +287,28 @@ inline float modelDefault (ParamHelp& ph, const char* id, float fallback)
 // ---------------------------------------------------------------------------- a rotary control on the unit's own scale
 inline void panelLabel (juce::Graphics& g, const juce::String& t, juce::Font f, juce::Colour face, juce::Colour ink, int cx, int y, int h)      // lettering on a pill of the faceplate colour: readable over what shows through
 {
-    const int w = (int) textWidth (f, t) + 12;
-    g.setColour (face.withAlpha (0.86f)); g.fillRoundedRectangle ((float) (cx - w / 2), (float) y, (float) w, (float) h, 4.0f);
-    g.setColour (ink); g.setFont (f); g.drawText (t, cx - w / 2, y, w, h, juce::Justification::centred);
+    const int w = (int) textWidth (f, t) + 14;
+    auto r = juce::Rectangle<float> ((float) (cx - w / 2), (float) y, (float) w, (float) h);
+    g.setColour (face.withAlpha (0.92f)); g.fillRoundedRectangle (r, 3.5f);
+    g.setColour (ink.withAlpha (0.30f)); g.drawRoundedRectangle (r.reduced (0.5f), 3.5f, 1.0f);
+    g.setColour (ink); g.setFont (f); g.drawText (t, (int) r.getX(), y, (int) r.getWidth(), h, juce::Justification::centred);
 }
 class PanelKnob : public juce::Component
 {
 public:
     static constexpr int kHeight = 118;
-    PanelKnob (ParamHelp& h, panel::Ctl ctl, panel::Face face, bool small = false) : ph (h), c (std::move (ctl)), F (face), mini (small) { getProperties().set ("pid", juce::String (c.id)); }
+    PanelKnob (ParamHelp& h, panel::Ctl ctl, panel::Face face, bool small = false) : ph (h), c (std::move (ctl)), F (face), mini (small)
+    {
+        getProperties().set ("pid", juce::String (c.id));
+        setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
+    }
+    bool isRel() const { return juce::String (c.id) == pid::release; }
+    juce::Rectangle<float> autoBtnRect() const
+    {
+        const float w = (float) getWidth(), cx = w * 0.5f, cy = mini ? 27.0f : 58.0f, R = mini ? 12.0f : 31.0f;
+        const float bw = mini ? 11.0f : 15.0f, bh = mini ? 10.0f : 13.0f;
+        return { cx + R - (mini ? 1.0f : 2.0f), cy - R - (mini ? 3.0f : 4.0f), bw, bh };
+    }
     float fracOf (float v) const { const float f = c.log ? std::log (std::max (v, 1.0e-6f) / c.lo) / std::log (c.hi / c.lo) : (v - c.lo) / (c.hi - c.lo); return juce::jlimit (0.0f, 1.0f, f); }
     float valueOf (float f) const { return c.log ? c.lo * std::pow (c.hi / c.lo, f) : c.lo + (c.hi - c.lo) * f; }
     void paint (juce::Graphics& g) override
@@ -306,24 +319,87 @@ public:
         if (mini) { g.setColour (ink); g.setFont (theme::mono (7.5f, true)); g.drawFittedText (c.cap, 0, 0, getWidth(), 11, juce::Justification::centred, 1, 0.6f); }
         else panelLabel (g, c.cap, theme::mono (9.5f, true), face, ink, (int) cx, 0, 15);
         const float a0 = -2.36f, a1 = 2.36f, a = a0 + (a1 - a0) * f;
-        if (! mini) { g.setColour (face.withAlpha (0.80f)); g.fillEllipse (cx - R - 9.0f, cy - R - 9.0f, (R + 9.0f) * 2, (R + 9.0f) * 2); }
+        if (! mini)
+        {
+            g.setColour (face.withAlpha (0.85f));
+            g.fillEllipse (cx - R - 9.0f, cy - R - 9.0f, (R + 9.0f) * 2, (R + 9.0f) * 2);
+            // subtle outer graduation ticks around the knob arc
+            for (int i = 0; i <= 10; ++i)
+            {
+                const float ai = a0 + (a1 - a0) * (float) i / 10.0f;
+                const float r1 = R + 9.5f, r2 = r1 + (i % 5 == 0 ? 3.5f : 2.0f);
+                g.setColour (ink.withAlpha (i % 5 == 0 ? 0.40f : 0.20f));
+                g.drawLine (cx + std::sin (ai) * r1, cy - std::cos (ai) * r1,
+                            cx + std::sin (ai) * r2, cy - std::cos (ai) * r2, 1.0f);
+            }
+        }
         juce::Path track; track.addCentredArc (cx, cy, R + ring, R + ring, 0.0f, a0, a1, true);
         g.setColour (ink.withAlpha (0.25f)); g.strokePath (track, juce::PathStrokeType (2.5f));
         juce::Path val; val.addCentredArc (cx, cy, R + ring, R + ring, 0.0f, a0, a, true);
         g.setColour (on.withAlpha (locked ? 0.45f : 1.0f)); g.strokePath (val, juce::PathStrokeType (2.5f));
-        g.setColour (juce::Colour (F.knob)); g.fillEllipse (cx - R, cy - R, R * 2, R * 2);
-        g.setColour (over || dragging ? on : ink.withAlpha (0.5f)); g.drawEllipse (cx - R, cy - R, R * 2, R * 2, 1.3f);
-        g.setColour (juce::Colour (F.ptr)); g.drawLine (cx + std::sin (a) * R * 0.45f, cy - std::cos (a) * R * 0.45f, cx + std::sin (a) * (R - 3.0f), cy - std::cos (a) * (R - 3.0f), mini ? 1.8f : 2.6f);
-        juce::String t = panel::fmt (c.fmt, v);
-        if (! mini && c.nLo != c.nHi) t = (c.nHi > 20 ? juce::String (juce::roundToInt (c.nLo + (c.nHi - c.nLo) * f)) : juce::String (c.nLo + (c.nHi - c.nLo) * f, 1)) + juce::String::fromUTF8 ("  (\xe2\x89\x88 ") + t + ")";
-        if (mini) { g.setColour (ink); g.setFont (theme::mono (8.5f, true)); g.drawFittedText (t, 0, 44, getWidth(), 12, juce::Justification::centred, 1, 0.7f); }
-        else panelLabel (g, t, theme::mono (10.5f, true), face, ink, (int) cx, 101, 16);
+
+        // 3D tactile knob body with subtle metallic / bakelite gradient
+        const juce::Colour kc (F.knob);
+        g.setGradientFill (juce::ColourGradient (kc.brighter (0.24f), cx - R * 0.5f, cy - R * 0.7f,
+                                                 kc.darker (0.32f), cx + R * 0.5f, cy + R * 0.7f, false));
+        g.fillEllipse (cx - R, cy - R, R * 2, R * 2);
+        // Bevel edge highlight
+        g.setColour (kc.brighter (0.45f).withAlpha (0.45f));
+        g.drawEllipse (cx - R + 0.5f, cy - R + 0.5f, (R - 0.5f) * 2, (R - 0.5f) * 2, 1.0f);
+        // Outer rim
+        g.setColour (over || dragging ? on : ink.withAlpha (0.5f));
+        g.drawEllipse (cx - R, cy - R, R * 2, R * 2, over || dragging ? 1.6f : 1.3f);
+
+        // Indicator pointer with glow when active
+        if (over || dragging)
+        {
+            g.setColour (on.withAlpha (0.40f));
+            g.drawLine (cx + std::sin (a) * R * 0.4f, cy - std::cos (a) * R * 0.4f,
+                        cx + std::sin (a) * (R - 2.0f), cy - std::cos (a) * (R - 2.0f), mini ? 2.6f : 4.0f);
+        }
+        g.setColour (juce::Colour (F.ptr));
+        g.drawLine (cx + std::sin (a) * R * 0.45f, cy - std::cos (a) * R * 0.45f,
+                    cx + std::sin (a) * (R - 3.0f), cy - std::cos (a) * (R - 3.0f), mini ? 1.8f : 2.6f);
+
+        if (isRel())
+        {
+            const auto ab = autoBtnRect();
+            const bool autoOn = ph.value (pid::autoRel) > 0.5f;
+            g.setColour (autoOn ? on : juce::Colour (0x45000000));
+            g.fillRoundedRectangle (ab, 3.0f);
+            g.setColour (autoOn ? juce::Colours::white : ink.withAlpha (0.45f));
+            g.drawRoundedRectangle (ab, 3.0f, 1.0f);
+            g.setFont (theme::mono (mini ? 7.0f : 8.5f, true));
+            g.setColour (autoOn ? (face.getPerceivedBrightness() > 0.5f ? juce::Colours::black : juce::Colours::white) : ink.withAlpha (0.75f));
+            g.drawText ("A", ab, juce::Justification::centred);
+        }
+
+        if (editor == nullptr)
+        {
+            juce::String t = panel::fmt (c.fmt, v);
+            if (! mini && juce::String (c.id) == pid::knee)
+            {
+                const auto p = ph.proc.currentParams();
+                const double eff = mod::effectiveKnee (p);
+                t = juce::String (v, 1) + " (" + juce::String (eff, 1) + ")";
+            }
+            else if (! mini && c.nLo != c.nHi) t = (c.nHi > 20 ? juce::String (juce::roundToInt (c.nLo + (c.nHi - c.nLo) * f)) : juce::String (c.nLo + (c.nHi - c.nLo) * f, 1)) + juce::String::fromUTF8 ("  (\xe2\x89\x88 ") + t + ")";
+            if (mini) { g.setColour (ink); g.setFont (theme::mono (8.5f, true)); g.drawFittedText (t, 0, 44, getWidth(), 12, juce::Justification::centred, 1, 0.7f); }
+            else panelLabel (g, t, theme::mono (10.5f, true), face, ink, (int) cx, 101, 16);
+        }
         if (locked) drawLock (g, cx + R + (mini ? 2.0f : 8.0f), cy - R - 2.0f);
     }
-    void mouseEnter (const juce::MouseEvent&) override { over = true; repaint(); }
-    void mouseExit (const juce::MouseEvent&) override { over = false; repaint(); }
+    void mouseEnter (const juce::MouseEvent&) override { over = true; setMouseCursor (juce::MouseCursor::UpDownResizeCursor); repaint(); }
+    void mouseExit (const juce::MouseEvent&) override { over = false; setMouseCursor (juce::MouseCursor::NormalCursor); repaint(); }
     void mouseDown (const juce::MouseEvent& e) override
     {
+        if (isRel() && autoBtnRect().contains (e.position))
+        {
+            const bool autoOn = ph.value (pid::autoRel) > 0.5f;
+            ph.setGesture (pid::autoRel, autoOn ? 0.0f : 1.0f);
+            repaint();
+            return;
+        }
         if (e.mods.isPopupMenu()) { ph.proc.setLocked (c.id, ! ph.proc.isLocked (c.id)); repaint(); return; }
         if (ph.proc.isLocked (c.id)) return;
         ph.proc.undo.beginNewTransaction();
@@ -338,7 +414,25 @@ public:
         ph.set (c.id, panel::legal (ph, c.id, valueOf (start))); repaint();
     }
     void mouseUp (const juce::MouseEvent&) override { if (dragging) { dragging = false; ph.end (c.id); } }
-    void mouseDoubleClick (const juce::MouseEvent&) override { if (! ph.proc.isLocked (c.id)) { ph.proc.undo.beginNewTransaction(); reset(); } }
+    void mouseDoubleClick (const juce::MouseEvent& e) override
+    {
+        if (ph.proc.isLocked (c.id)) return;
+        if (e.mods.isAltDown()) { ph.proc.undo.beginNewTransaction(); reset(); return; }
+        // Open floating TextEditor over the value pill for direct precision typing
+        const int cx = getWidth() / 2;
+        const auto valRect = juce::Rectangle<int> (std::max (4, cx - 45), mini ? 42 : 99, std::min (getWidth() - 8, 90), mini ? 16 : 20);
+        editor = std::make_unique<juce::TextEditor>();
+        editor->setFont (theme::mono (mini ? 9.5f : 11.0f, true));
+        editor->setJustification (juce::Justification::centred);
+        editor->setText (panel::fmt (c.fmt, ph.value (c.id)).trim(), false);
+        editor->selectAll();
+        editor->setBounds (valRect);
+        editor->onReturnKey = [this] { commitEditor (true); };
+        editor->onEscapeKey = [this] { commitEditor (false); };
+        editor->onFocusLost = [this] { commitEditor (true); };
+        addAndMakeVisible (*editor);
+        editor->grabKeyboardFocus();
+    }
     void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
     {
         if (ph.proc.isLocked (c.id) || std::abs (w.deltaY) < 1.0e-4f) return;
@@ -346,8 +440,28 @@ public:
         ph.setGesture (c.id, panel::legal (ph, c.id, valueOf (f))); repaint();
     }
 private:
+    void commitEditor (bool apply)
+    {
+        if (editor == nullptr) return;
+        const auto txt = editor->getText().trim();
+        juce::MessageManager::callAsync ([sp = juce::Component::SafePointer<PanelKnob> (this)] {
+            if (sp != nullptr) { sp->editor.reset(); sp->repaint(); }
+        });
+        if (apply && txt.isNotEmpty())
+        {
+            auto clean = txt.replace (juce::String::fromUTF8 ("\xe2\x88\x92"), "-")
+                            .replace ("dB", "", true)
+                            .replace ("ms", "", true)
+                            .replace ("s", "", true)
+                            .trim();
+            float v = clean.getFloatValue();
+            if (clean.containsIgnoreCase ("k")) v *= 1000.0f;
+            ph.setGesture (c.id, panel::legal (ph, c.id, v));
+        }
+    }
     void reset() { ph.setGesture (c.id, panel::legal (ph, c.id, panel::modelDefault (ph, c.id, ph.value (c.id)))); repaint(); }
     ParamHelp& ph; panel::Ctl c; panel::Face F; float start = 0, lastY = 0; bool over = false, dragging = false, mini = false;
+    std::unique_ptr<juce::TextEditor> editor;
 };
 
 // ---------------------------------------------------------------------------- a stepped switch: every position sets one or more parameters
@@ -355,7 +469,10 @@ class PanelSteps : public juce::Component
 {
 public:
     static constexpr int kHeight = 44;
-    PanelSteps (ParamHelp& h, panel::Ctl ctl, panel::Face face, bool small = false) : ph (h), c (std::move (ctl)), F (face), mini (small) {}
+    PanelSteps (ParamHelp& h, panel::Ctl ctl, panel::Face face, bool small = false) : ph (h), c (std::move (ctl)), F (face), mini (small)
+    {
+        setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    }
     static int naturalWidth (const panel::Ctl& k)
     {
         int chars = 1; for (auto& o : k.opts) chars = std::max (chars, juce::String::fromUTF8 (o.label).length());
@@ -391,16 +508,42 @@ public:
         if (mini) { g.setColour (ink); g.setFont (theme::mono (7.5f, true)); g.drawFittedText (c.cap, 0, 0, getWidth(), 11, juce::Justification::centred, 1, 0.6f); }
         else panelLabel (g, c.cap, theme::mono (9.5f, true), face, ink, getWidth() / 2, 0, 15);
         const auto r = row(); const int n = (int) c.opts.size(), sel = active();
-        g.setColour (face.darker (0.55f)); g.fillRoundedRectangle (r, 4.0f);
+        // Inset slot frame for tactile analog switches
+        g.setColour (face.darker (0.62f)); g.fillRoundedRectangle (r, 4.0f);
         g.setColour (ink.withAlpha (0.35f)); g.drawRoundedRectangle (r, 4.0f, 1.0f);
         const juce::Colour offInk = face.darker (0.55f).getPerceivedBrightness() > 0.5f ? juce::Colour (0xff141414) : juce::Colour (0xffe8e8e8);
         for (int i = 0; i < n; ++i)
         {
             const auto b = optRect (i).reduced (mini ? 1.5f : 2.0f);
-            if (i == sel) { g.setColour (on); g.fillRoundedRectangle (b, 3.0f); }
-            g.setColour (i == sel ? panel::onInk (on) : offInk); g.setFont (theme::ui (mini ? 9.0f : 10.5f, i == sel));
+            if (i == sel)
+            {
+                // 3D tactile illuminated active button
+                g.setGradientFill (juce::ColourGradient (on.brighter (0.15f), b.getX(), b.getY(),
+                                                         on.darker (0.15f), b.getX(), b.getBottom(), false));
+                g.fillRoundedRectangle (b, 3.0f);
+                g.setColour (juce::Colours::white.withAlpha (0.30f));
+                g.drawRoundedRectangle (b.reduced (0.5f), 3.0f, 1.0f);
+            }
+            else if (i == hoverIdx)
+            {
+                g.setColour (offInk.withAlpha (0.16f));
+                g.fillRoundedRectangle (b, 3.0f);
+            }
+            g.setColour (i == sel ? panel::onInk (on) : offInk);
+            g.setFont (theme::ui (mini ? 9.0f : 10.5f, i == sel));
             g.drawText (juce::String::fromUTF8 (c.opts[(size_t) i].label), b, juce::Justification::centred);
         }
+    }
+    void mouseMove (const juce::MouseEvent& e) override
+    {
+        int newHover = -1;
+        for (int j = 0; j < (int) c.opts.size(); ++j)
+            if (optRect (j).contains (e.position)) { newHover = j; break; }
+        if (newHover != hoverIdx) { hoverIdx = newHover; repaint(); }
+    }
+    void mouseExit (const juce::MouseEvent&) override
+    {
+        if (hoverIdx >= 0) { hoverIdx = -1; repaint(); }
     }
     void mouseDown (const juce::MouseEvent& e) override
     {
@@ -410,24 +553,66 @@ public:
         for (auto& kv : c.opts[(size_t) i].set) if (! ph.proc.isLocked (kv.first)) ph.setGesture (kv.first, panel::legal (ph, kv.first, kv.second));
         repaint();
     }
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w) override
+    {
+        if (c.opts.empty() || std::abs (w.deltaY) < 1.0e-4f) return;
+        const int cur = active();
+        const int dir = (w.deltaY > 0 ? 1 : -1) * (w.isReversed ? -1 : 1);
+        const int nxt = juce::jlimit (0, (int) c.opts.size() - 1, (cur < 0 ? 0 : cur) + dir);
+        if (nxt != cur)
+        {
+            ph.proc.undo.beginNewTransaction();
+            for (auto& kv : c.opts[(size_t) nxt].set)
+                if (! ph.proc.isLocked (kv.first)) ph.setGesture (kv.first, panel::legal (ph, kv.first, kv.second));
+            repaint();
+        }
+    }
 private:
-    ParamHelp& ph; panel::Ctl c; panel::Face F; bool mini = false;
+    ParamHelp& ph; panel::Ctl c; panel::Face F; bool mini = false; int hoverIdx = -1;
 };
 
 // ---------------------------------------------------------------------------- the panel: a faceplate over the signal flow, opaque or see-through
 class PanelView : public juce::Component
 {
 public:
-    explicit PanelView (ParamHelp& h) : ph (h) {}
+    explicit PanelView (ParamHelp& h) : ph (h), analogV (h, "ANALOG")
+    {
+        analogV.compact = true;
+        analogV.setParam (pid::analog);
+        analogV.format = [] (float v) { return juce::String (juce::roundToInt (v)) + " %"; };
+        setHelp (analogV, "ANALOG EFFECT",
+                 "アナログモデリングの効果量。0%＝モデリングなし、100%＝標準、100%以上では色付けを強める",
+                 "Analog modeling amount. 0% = none, 100% = standard, above 100% strengthens coloration");
+        addAndMakeVisible (analogV);
+    }
     void refresh()
     {
         int m = ph.proc.currentModel(); if (m < 0 || m >= (int) mod::models().size()) m = 0;
         if (m != builtFor || getWidth() != builtW) build (m);
         const float target = ph.proc.isFrozen() ? ph.proc.pvGrPk : ph.proc.grLast.load();
+        const float prevVu = vu;
         vu += (target - vu) * (target > vu ? 0.5f : 0.18f);
-        repaint();
+        bool needRepaint = std::abs (vu - prevVu) > 0.03f;
+        const bool isMb = ph.value (pid::mb) > 0.5f;
+        if (isMb)
+        {
+            for (int b = 0; b < 3; ++b)
+            {
+                const float tb = ph.proc.bandGr[(size_t) b].load();
+                const float prevB = vuBands[b];
+                vuBands[b] += (tb - vuBands[b]) * (tb > vuBands[b] ? 0.5f : 0.18f);
+                if (std::abs (vuBands[b] - prevB) > 0.03f) needRepaint = true;
+            }
+        }
+        if (needRepaint)
+            repaint (vuRect().expanded (6));
+        analogV.repaint();
     }
-    void resized() override { builtFor = -2; }
+    void resized() override
+    {
+        builtFor = -2;
+        analogV.setBounds (getWidth() - 162, 188, 144, 32);
+    }
     void mouseDown (const juce::MouseEvent& e) override { if (const int t = hitViewBtn (e.getPosition(), getWidth()); t >= 0) setViewMode (ph.proc.uiState, t); }
     void paint (juce::Graphics& g) override
     {
@@ -439,36 +624,123 @@ public:
         const juce::Colour head (0xff15171b), headInk (0xffe6e3dc);                                   // the title strip is the same on every faceplate
         g.setColour (head); g.fillRoundedRectangle (r.withHeight (26.0f), 6.0f); g.fillRect (r.getX(), 14.0f, r.getWidth(), 12.0f);
         g.setColour (ink.withAlpha (0.35f)); g.drawRoundedRectangle (r.reduced (0.5f), 6.0f, 1.0f);
+
+        // Rack mount corner screws with realistic slot detailing
         for (float x : { 16.0f, r.getRight() - 16.0f }) for (float y : { 38.0f, r.getBottom() - 12.0f })
-        { g.setColour (juce::Colours::black.withAlpha (0.55f)); g.fillEllipse (x - 4.5f, y - 4.5f, 9.0f, 9.0f); g.setColour (ink.withAlpha (0.35f)); g.drawEllipse (x - 4.5f, y - 4.5f, 9.0f, 9.0f, 1.0f); }
+        {
+            g.setColour (juce::Colours::black.withAlpha (0.50f)); g.fillEllipse (x - 4.5f, y - 4.5f, 9.0f, 9.0f);
+            g.setColour (juce::Colour (0xff8a9099).withAlpha (0.75f)); g.drawEllipse (x - 4.5f, y - 4.5f, 9.0f, 9.0f, 1.2f);
+            g.setColour (juce::Colours::black.withAlpha (0.65f)); g.drawLine (x - 2.8f, y - 2.8f, x + 2.8f, y + 2.8f, 1.2f);
+        }
         g.setColour (headInk); g.setFont (theme::mono (12.0f, true)); const int nw = (int) textWidth (theme::mono (12.0f, true), M.name) + 4;
         g.drawText (M.name, 12, 4, nw, 18, juce::Justification::centredLeft);
         g.setColour (headInk.withAlpha (0.65f)); g.setFont (theme::ui (9.5f));
-        g.drawText (juce::String (M.ref) + ph.tr ("　｜　実機にある操作子を実機の目盛りで表示。ポインターを置くと、内部で動くブロック（①〜⑦）を説明欄に表示。右クリックでロック、ダブルクリックで初期値",
-                                                  "   |   The hardware's controls on its own scales. Hover one to read which block (① – ⑦) it moves. Right-click locks, double-click resets"),
+        g.drawText (ph.tr ("　｜　モデルの操作子を専用の目盛りで表示。ポインターを置くと、内部で動くブロック（①〜⑦）を説明欄に表示。右クリックでロック、ダブルクリックで初期値",
+                           "   |   Model controls on dedicated scales. Hover one to read which block (① – ⑦) it moves. Right-click locks, double-click resets"),
                     12 + nw + 10, 6, getWidth() - 12 - nw - 10 - 244, 14, juce::Justification::centredLeft);
         drawViewBtns (g, getWidth(), mode, ph.ja());
 
-        // GR meter
+        // Analog GR meter with vintage warm illumination and depth
         const auto v = vuRect().toFloat();
-        g.setColour (juce::Colour (0xffe9dfc4)); g.fillRoundedRectangle (v, 4.0f);
-        g.setColour (juce::Colours::black.withAlpha (0.5f)); g.drawRoundedRectangle (v, 4.0f, 1.0f);
+        g.setColour (juce::Colour (0xff181a1e));
+        g.fillRoundedRectangle (v.expanded (3.0f), 5.0f);
+        g.setColour (juce::Colour (0xff353b44));
+        g.drawRoundedRectangle (v.expanded (3.0f).reduced (0.5f), 5.0f, 1.0f);
+
+        // Vintage warm paper face gradient
+        g.setGradientFill (juce::ColourGradient (juce::Colour (0xfff5ecd0), v.getCentreX(), v.getY() + 10.0f,
+                                                 juce::Colour (0xffdfd0a8), v.getCentreX(), v.getBottom(), false));
+        g.fillRoundedRectangle (v, 3.5f);
+        g.setColour (juce::Colours::black.withAlpha (0.45f));
+        g.drawRoundedRectangle (v, 3.5f, 1.0f);
+
         const float px = v.getCentreX(), py = v.getBottom() + 26.0f, rad = 118.0f, span = 0.50f;
         auto ang = [span] (float gr) { return span - juce::jlimit (0.0f, 20.0f, gr) / 20.0f * 2.0f * span; };          // 0 dB at the right, 20 dB at the left
-        const juce::Colour dark (0xff3a342a);
-        juce::Path arc; arc.addCentredArc (px, py, rad, rad, 0.0f, -span, span, true); g.setColour (dark); g.strokePath (arc, juce::PathStrokeType (1.4f));
-        g.setFont (theme::mono (8.5f));
+        const juce::Colour dark (0xff383228);
+
+        // Normal arc (0 to 10 dB)
+        juce::Path arcNormal;
+        arcNormal.addCentredArc (px, py, rad, rad, 0.0f, ang (10.0f), span, true);
+        g.setColour (dark);
+        g.strokePath (arcNormal, juce::PathStrokeType (1.5f));
+
+        // Danger zone arc (10 to 20 dB) in classic vintage red
+        juce::Path arcRed;
+        arcRed.addCentredArc (px, py, rad, rad, 0.0f, -span, ang (10.0f), true);
+        g.setColour (juce::Colour (0xffba3828));
+        g.strokePath (arcRed, juce::PathStrokeType (2.2f));
+
+        g.setFont (theme::mono (8.5f, true));
         for (int t : { 0, 3, 6, 10, 15, 20 })
         {
             const float a = ang ((float) t), sx = std::sin (a), cxn = -std::cos (a);
-            g.drawLine (px + sx * rad, py + cxn * rad, px + sx * (rad + 5.0f), py + cxn * (rad + 5.0f), 1.2f);
+            const bool isRed = t >= 10;
+            g.setColour (isRed ? juce::Colour (0xffba3828) : dark);
+            g.drawLine (px + sx * rad, py + cxn * rad, px + sx * (rad + 5.5f), py + cxn * (rad + 5.5f), isRed ? 1.6f : 1.2f);
             g.drawText (juce::String (t), (int) (px + sx * (rad + 13.0f)) - 10, (int) (py + cxn * (rad + 13.0f)) - 5, 20, 10, juce::Justification::centred);
         }
-        g.setFont (theme::mono (9.5f, true)); g.drawText ("GR " + minus (-vu) + " dB", (int) v.getX(), (int) v.getBottom() - 18, (int) v.getWidth(), 12, juce::Justification::centred);
-        { juce::Graphics::ScopedSaveState s (g); g.reduceClipRegion (v.toNearestInt().reduced (2));
-          const float a = ang (vu); g.setColour (juce::Colour (0xffb83f36)); g.drawLine (px, py, px + std::sin (a) * (rad + 2.0f), py - std::cos (a) * (rad + 2.0f), 1.8f); }
+        const bool isMb = ph.value (pid::mb) > 0.5f;
+        g.setColour (dark.withAlpha (0.70f));
+        g.setFont (theme::mono (7.5f, true));
+        g.drawText (isMb ? "MULTIBAND GR (3-BAND)" : "GAIN REDUCTION", (int) v.getX(), (int) v.getY() + 38, (int) v.getWidth(), 11, juce::Justification::centred);
+
+        if (! isMb)
+        {
+            g.setFont (theme::mono (9.5f, true));
+            g.drawText ("GR " + minus (-vu) + " dB", (int) v.getX(), (int) v.getBottom() - 18, (int) v.getWidth(), 12, juce::Justification::centred);
+        }
+        else
+        {
+            g.setFont (theme::mono (8.0f, true));
+            g.drawText ("L " + minus (-vuBands[0]) + "  M " + minus (-vuBands[1]) + "  H " + minus (-vuBands[2]) + " dB",
+                        (int) v.getX(), (int) v.getBottom() - 18, (int) v.getWidth(), 12, juce::Justification::centred);
+        }
+
+        {
+            juce::Graphics::ScopedSaveState s (g);
+            g.reduceClipRegion (v.toNearestInt().reduced (2));
+
+            auto drawNeedle = [&] (float val, juce::Colour col, float width, const char* label)
+            {
+                const float a = ang (val);
+                const float nx = px + std::sin (a) * (rad + 3.0f), ny = py - std::cos (a) * (rad + 3.0f);
+                // Shadow
+                g.setColour (juce::Colours::black.withAlpha (0.20f));
+                g.drawLine (px + 1.2f, py + 1.2f, nx + 1.5f, ny + 1.5f, width + 0.4f);
+                // Body
+                g.setColour (col);
+                g.drawLine (px, py, nx, ny, width);
+                if (label != nullptr)
+                {
+                    g.setFont (theme::mono (7.0f, true));
+                    g.setColour (col.brighter (0.2f));
+                    g.drawText (label, (int) (nx - 6.0f), (int) (ny - 6.0f), 12, 12, juce::Justification::centred);
+                }
+            };
+
+            if (! isMb)
+            {
+                drawNeedle (vu, juce::Colour (0xffc0392b), 1.8f, nullptr);
+            }
+            else
+            {
+                // 3 bands: Low (Cyan/Blue), Mid (Amber/Gold), High (Crimson/Red)
+                drawNeedle (vuBands[0], juce::Colour (0xff1e88e5), 1.5f, "L");
+                drawNeedle (vuBands[1], juce::Colour (0xffe67e22), 1.5f, "M");
+                drawNeedle (vuBands[2], juce::Colour (0xffe91e63), 1.5f, "H");
+            }
+
+            // Center needle pivot cap
+            g.setColour (juce::Colour (0xff1c1e22));
+            g.fillEllipse (px - 8.0f, py - 8.0f, 16.0f, 16.0f);
+            g.setColour (juce::Colour (0xff888e99));
+            g.drawEllipse (px - 8.0f, py - 8.0f, 16.0f, 16.0f, 1.0f);
+            g.setColour (juce::Colour (0xff555a64));
+            g.fillEllipse (px - 3.0f, py - 3.0f, 6.0f, 6.0f);
+        }
     }
 private:
+    DragValue analogV;
     juce::Rectangle<int> vuRect() const { return { getWidth() - 162, 62, 144, 124 }; }
     void build (int m)
     {
@@ -502,7 +774,7 @@ private:
             x += (float) w + gap;
         }
     }
-    ParamHelp& ph; juce::OwnedArray<juce::Component> ctls; int builtFor = -2, builtW = 0; float vu = 0;
+    ParamHelp& ph; juce::OwnedArray<juce::Component> ctls; int builtFor = -2, builtW = 0; float vu = 0, vuBands[3] { 0, 0, 0 };
 };
 
 // ---------------------------------------------------------------------------- the same controls, small: shown in the lower-left view while the middle row is on BUILD

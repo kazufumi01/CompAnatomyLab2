@@ -280,7 +280,7 @@ public:
         g.setColour (b.findColour (juce::ComboBox::arrowColourId).withAlpha (b.isEnabled() ? 0.9f : 0.2f));
         g.strokePath (p, juce::PathStrokeType (2.0f));
     }
-    juce::Font getComboBoxFont (juce::ComboBox&) override { return ui (11.5f); }
+    juce::Font getComboBoxFont (juce::ComboBox&) override { return ui (10.5f); }
     juce::Font getPopupMenuFont() override { return ui (13.0f); }
     juce::Font getLabelFont (juce::Label& l) override { return l.getFont(); }
 };

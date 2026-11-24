@@ -22,10 +22,11 @@ struct StepResult
     double preMs = 3.0, fs = 48000.0;
 };
 
-inline std::array<double, 19> stepKey (const Params& p)
+inline std::array<double, 20> stepKey (const Params& p)
 {
     return { (double) p.det, p.rmsMs, p.feedback ? 1.0 : 0.0, (double) p.law, p.threshold, p.ratio, p.knee, (double) p.timing,
-             p.attack, p.release, p.slowMult, p.slowAmt, p.holdMs, p.avgMs, (double) p.element, p.driveDb, p.relCurve, p.crestDb, p.grLimit };
+             p.attack, p.release, p.slowMult, p.slowAmt, p.holdMs, p.avgMs, (double) p.element, p.driveDb, p.relCurve, p.crestDb, p.grLimit,
+             p.autoRel ? 1.0 : 0.0 };
 }
 
 inline StepResult measureStep (Params p, double overDb, double fs = 48000.0)
@@ -76,7 +77,7 @@ inline StepResult measureStep (Params p, double overDb, double fs = 48000.0)
     r.attack.assign (preN, 0.0f);
     r.attack.insert (r.attack.end(), on.begin(), on.begin() + (std::ptrdiff_t) nA);
     r.release.assign (off.begin(), off.begin() + (std::ptrdiff_t) nR);
-    if (p.timing == TimProg2 || p.timing == TimAuto || p.timing == TimOptoMem || p.det == DetCrest) r.slowRel.assign (offS.begin(), offS.begin() + (std::ptrdiff_t) nR);
+    if (p.autoRel || p.timing == TimProg2 || p.timing == TimAuto || p.timing == TimOptoMem || p.det == DetCrest) r.slowRel.assign (offS.begin(), offS.begin() + (std::ptrdiff_t) nR);
     r.valid = true;
     return r;
 }

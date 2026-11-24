@@ -3,11 +3,11 @@
 CompView::CompView (CompProcessor& p) : proc (p)
 {
     // the look is shared by every instance on this computer
-    theme::setSkin ((int) ZoomPrefs::file().getIntValue ("companatomy2.skin", 0)); lnf.apply();
+    theme::setSkin ((int) ZoomPrefs::file().getIntValue ("companatomy2_dev.skin", 0)); lnf.apply();
     for (int i = 0; i < theme::numSkins(); ++i) zoom.skinNames.add (theme::skinName (i));
     zoom.getSkin = [] { return theme::current; };
     zoom.setSkin = [this] (int i) { applySkin (i); };
-    theme::surface = juce::jlimit (0, theme::numSurfaces() - 1, ZoomPrefs::file().getIntValue ("companatomy2.surface", 0));
+    theme::surface = juce::jlimit (0, theme::numSurfaces() - 1, ZoomPrefs::file().getIntValue ("companatomy2_dev.surface", 0));
     for (int i = 0; i < theme::numSurfaces(); ++i) zoom.surfaceNames.add (theme::surfaceName (i));
     zoom.getSurface = [] { return theme::surface; };
     zoom.setSurface = [this] (int i) { applySurface (i); };
@@ -30,13 +30,21 @@ CompView::CompView (CompProcessor& p) : proc (p)
     modelBox.setTextWhenNothingSelected ("MODEL");
     modelBox.onChange = [this] { const int id = modelBox.getSelectedId(); if (id > 0 && id - 1 != proc.currentModel()) proc.applyModel (id - 1); };
     addAndMakeVisible (modelBox);
+    modelPrevBtn.setButtonText ("<");
+    modelNextBtn.setButtonText (">");
+    modelPrevBtn.onClick = [this] { const int id = modelBox.getSelectedId(); if (id > 1) modelBox.setSelectedId (id - 1); else if (modelBox.getNumItems() > 0) modelBox.setSelectedId (modelBox.getNumItems()); };
+    modelNextBtn.onClick = [this] { const int id = modelBox.getSelectedId(); if (id < modelBox.getNumItems()) modelBox.setSelectedId (id + 1); else if (modelBox.getNumItems() > 0) modelBox.setSelectedId (1); };
+    addAndMakeVisible (modelPrevBtn); addAndMakeVisible (modelNextBtn);
+    setHelp (modelPrevBtn, "MODEL <", "前のモデルへ切り替え", "Previous model");
+    setHelp (modelNextBtn, "MODEL >", "次のモデルへ切り替え", "Next model");
     presetBtn.onClick = [this] { showPresetMenu(); };
+    presetBtn.getProperties().set ("chevron", 1);
     addAndMakeVisible (presetBtn);
-    prevBtn.setButtonText (juce::String::fromUTF8 ("\xe2\x97\x80")); nextBtn.setButtonText (juce::String::fromUTF8 ("\xe2\x96\xb6"));
+    prevBtn.setButtonText ("<"); nextBtn.setButtonText (">");
     prevBtn.onClick = [this] { stepPreset (-1); }; nextBtn.onClick = [this] { stepPreset (1); };
     addAndMakeVisible (prevBtn); addAndMakeVisible (nextBtn);
-    setHelp (prevBtn, "PRESET \xe2\x97\x80", "前のプリセット。順番はメニューと同じ（機種の分類順に、機種の初期設定→その機種のプリセット、最後にユーザープリセット）", "Previous preset, in menu order (models by group: default, then its presets; user presets last)");
-    setHelp (nextBtn, "PRESET \xe2\x96\xb6", "次のプリセット。順番はメニューと同じ（機種の分類順に、機種の初期設定→その機種のプリセット、最後にユーザープリセット）", "Next preset, in menu order (models by group: default, then its presets; user presets last)");
+    setHelp (prevBtn, "PRESET <", "前のプリセット。順番はメニューと同じ（機種の分類順に、機種の初期設定→その機種のプリセット、最後にユーザープリセット）", "Previous preset, in menu order (models by group: default, then its presets; user presets last)");
+    setHelp (nextBtn, "PRESET >", "次のプリセット。順番はメニューと同じ（機種の分類順に、機種の初期設定→その機種のプリセット、最後にユーザープリセット）", "Next preset, in menu order (models by group: default, then its presets; user presets last)");
     lockBtn.onClick = [this] { showLockMenu(); };
     addAndMakeVisible (lockBtn);
     for (int i = 0; i < 4; ++i)
@@ -116,13 +124,13 @@ void CompView::mouseDown (const juce::MouseEvent&) { proc.undo.beginNewTransacti
 void CompView::applySkin (int i)
 {
     theme::setSkin (i);
-    ZoomPrefs::file().setValue ("companatomy2.skin", i); ZoomPrefs::file().saveIfNeeded();
+    ZoomPrefs::file().setValue ("companatomy2_dev.skin", i); ZoomPrefs::file().saveIfNeeded();
     lnf.apply(); sendLookAndFeelChange(); refreshTexts(); repaint();
 }
 void CompView::applySurface (int i)
 {
     theme::surface = juce::jlimit (0, theme::numSurfaces() - 1, i);
-    ZoomPrefs::file().setValue ("companatomy2.surface", theme::surface); ZoomPrefs::file().saveIfNeeded();
+    ZoomPrefs::file().setValue ("companatomy2_dev.surface", theme::surface); ZoomPrefs::file().saveIfNeeded();
     repaint();
 }
 
@@ -269,7 +277,7 @@ void CompView::refreshTexts()
     }
     const auto label = proc.presetLabel (ph.ja());
     presetBtn.getProperties().set ("fontPx", 11.0);
-    presetBtn.setButtonText (label.isEmpty() ? juce::String::fromUTF8 ("PRESET  \xe2\x96\xbe") : label + juce::String::fromUTF8 ("  \xe2\x96\xbe"));
+    presetBtn.setButtonText (label.isEmpty() ? juce::String ("PRESET") : label);
     lockBtn.setButtonText (proc.numLocked() > 0 ? "LOCK " + juce::String (proc.numLocked()) : juce::String ("LOCK"));
     lockBtn.setToggleState (proc.numLocked() > 0, juce::dontSendNotification);
     listenBtn.setButtonText ("SC LISTEN"); deltaBtn.setButtonText ("Delta"); bypassBtn.setButtonText ("Bypass");
@@ -293,7 +301,7 @@ void CompView::paint (juce::Graphics& g)
     g.setColour (theme::panel); g.fillRoundedRectangle (outV.getBounds().toFloat(), 5.0f);          // OUT sits on the surface: give it a panel so its text reads in every look
     g.setColour (theme::line); g.drawRoundedRectangle (outV.getBounds().toFloat().reduced (0.5f), 5.0f, 1.0f);
     g.setColour (theme::text); g.setFont (theme::mono (11.5f, true));
-    g.drawText ("COMP ANATOMY LAB 2", 12, 6, 150, 20, juce::Justification::centredLeft);
+    g.drawText ("COMP ANATOMY LAB 2 DEV", 12, 6, 175, 20, juce::Justification::centredLeft);
     g.setColour (theme::faint); g.setFont (theme::ui (9.0f));
     g.drawText ("by Johan Plus Kei", 12, 24, 150, 14, juce::Justification::centredLeft);
     const int lat = proc.getLatencySamples(); const double fs = proc.getSampleRateOrDefault();
@@ -309,8 +317,10 @@ void CompView::paint (juce::Graphics& g)
 void CompView::resized()
 {
     zoom.setBounds (162, 12, 46, 20);                    // right after the title, as in the Delay labs
-    modelBox.setBounds (218, 10, 150, 24);
-    prevBtn.setBounds (374, 10, 24, 24); presetBtn.setBounds (400, 10, 174, 24); nextBtn.setBounds (576, 10, 24, 24);
+    modelPrevBtn.setBounds (214, 10, 18, 24);
+    modelBox.setBounds (234, 10, 134, 24);
+    modelNextBtn.setBounds (370, 10, 18, 24);
+    prevBtn.setBounds (392, 10, 18, 24); presetBtn.setBounds (412, 10, 162, 24); nextBtn.setBounds (576, 10, 18, 24);
     listenBtn.setBounds (816, 10, 84, 24);
     lockBtn.setBounds (904, 10, 70, 24);
     for (int i = 0; i < 4; ++i) slotBtn[i].setBounds (980 + i * 26, 10, 24, 24);

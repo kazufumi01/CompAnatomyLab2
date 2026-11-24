@@ -6,12 +6,14 @@ namespace
 const char* kIds[] = { pid::input, pid::inXfmr, pid::scSource, pid::scHpf, pid::scTilt, pid::link, pid::band, pid::bandHz, pid::bandQ, pid::bandOnly,
                        pid::detector, pid::rmsWin, pid::topology, pid::law, pid::threshold, pid::ratio, pid::knee,
                        pid::timing, pid::attack, pid::release, pid::slowMult, pid::slowAmt, pid::hold, pid::lookahead, pid::avg,
-                       pid::element, pid::drive, pid::os, pid::outStage, pid::makeup, pid::mix,
+                       pid::element, pid::drive, pid::analog, pid::os, pid::outStage, pid::makeup, pid::mix,
                        pid::scListen, pid::output, pid::autoGain, pid::delta, pid::bypass,
-                       pid::upOn, pid::upThr, pid::upRatio, pid::upRange, pid::mb, pid::xLo, pid::xHi, pid::mbLo, pid::mbMid, pid::mbHi, pid::relCurve, pid::crest, pid::grLimit, pid::stereo, pid::scMb, pid::scLo, pid::scMid, pid::scHi, pid::pre, pid::preThr };
+                       pid::upOn, pid::upThr, pid::upRatio, pid::upRange, pid::mb, pid::xLo, pid::xHi, pid::mbLo, pid::mbMid, pid::mbHi, pid::relCurve, pid::crest, pid::grLimit, pid::stereo, pid::scMb, pid::scLo, pid::scMid, pid::scHi, pid::pre, pid::preThr,
+                       pid::autoRel, pid::dynMode };
 enum { iInput, iInX, iScSrc, iHpf, iTilt, iLink, iBand, iBandHz, iBandQ, iBandOnly, iDet, iRms, iTopo, iLaw, iThr, iRatio, iKnee,
-       iTiming, iAtt, iRel, iSlowM, iSlowA, iHold, iLook, iAvg, iElem, iDrive, iOs, iOut, iMakeup, iMix, iScListen, iOutput, iAuto, iDelta, iByp,
-       iUpOn, iUpThr, iUpRatio, iUpRange, iMb, iXLo, iXHi, iMbLo, iMbMid, iMbHi, iRelCurve, iCrest, iGrLimit, iStereo, iScMb, iScLo, iScMid, iScHi, iPre, iPreThr };
+       iTiming, iAtt, iRel, iSlowM, iSlowA, iHold, iLook, iAvg, iElem, iDrive, iAnalog, iOs, iOut, iMakeup, iMix, iScListen, iOutput, iAuto, iDelta, iByp,
+       iUpOn, iUpThr, iUpRatio, iUpRange, iMb, iXLo, iXHi, iMbLo, iMbMid, iMbHi, iRelCurve, iCrest, iGrLimit, iStereo, iScMb, iScLo, iScMid, iScHi, iPre, iPreThr,
+       iAutoRel, iDynMode };
 
 // 8 s of a drum-like loop for the preview before any audio has arrived
 void builtinLoop (std::vector<float>& L, std::vector<float>& R, double fs)
@@ -64,12 +66,13 @@ mod::Params CompProcessor::currentParams() const
     p.upOn = v (iUpOn) > 0.5f; p.upThreshold = v (iUpThr); p.upRatio = v (iUpRatio); p.upRange = v (iUpRange);
     p.timing = (int) v (iTiming); p.attack = v (iAtt); p.release = v (iRel); p.slowMult = v (iSlowM); p.slowAmt = v (iSlowA) / 100.0;
     p.holdMs = v (iHold); p.lookaheadMs = v (iLook); p.avgMs = v (iAvg);
-    p.element = (int) v (iElem); p.driveDb = v (iDrive); p.os = 1 << juce::jlimit (0, 2, (int) v (iOs));
+    p.element = (int) v (iElem); p.driveDb = v (iDrive); p.analogPct = v (iAnalog); p.os = 1 << juce::jlimit (0, 2, (int) v (iOs));
     p.out = (int) v (iOut); p.makeup = v (iMakeup); p.mix = v (iMix) / 100.0;
     p.mb = v (iMb) > 0.5f; p.xLo = v (iXLo); p.xHi = v (iXHi); p.bandGain[0] = v (iMbLo); p.bandGain[1] = v (iMbMid); p.bandGain[2] = v (iMbHi);
     p.relCurve = v (iRelCurve) / 100.0; p.crestDb = v (iCrest); p.grLimit = v (iGrLimit);
     p.stereo = (int) v (iStereo); p.scMb = v (iScMb) > 0.5f; p.scSens[0] = v (iScLo); p.scSens[1] = v (iScMid); p.scSens[2] = v (iScHi);
     p.pre = v (iPre) > 0.5f; p.preThr = v (iPreThr);
+    p.autoRel = v (iAutoRel) > 0.5f; p.dynMode = (int) v (iDynMode);
     if (p.law == mod::LawSpectral) p.mb = false;                    // spectral compression already works per frequency
     switch (quizKind.load (std::memory_order_relaxed))               // ear training: the question's value, whatever the screen shows
     {
@@ -252,7 +255,9 @@ void CompProcessor::prepareToPlay (double sampleRate, int)
 {
     sr = sampleRate;
     core = std::make_unique<mod::Multi> (sampleRate);
-    const auto p = currentParams(); core->set (p);
+    activeParams = currentParams();
+    core->set (activeParams);
+    paramsValid = true;
     const int ring = (int) std::ceil (sampleRate * 0.012) + 64 + mod::Spectral::N;
     dryRingL.assign ((size_t) ring, 0.0f); dryRingR.assign ((size_t) ring, 0.0f); dryW = 0;
     for (auto* b : { &dryL, &dryR, &delL, &delR, &tGr, &tMem, &tUp, &tIn, &tDetL, &tDetR, &scratchR, &tPre }) b->assign ((size_t) kChunk, 0.0f);
@@ -280,7 +285,13 @@ void CompProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     scConnected = scOn;
     const bool useExt = scOn && (int) v (iScSrc) == 1;
 
-    core->set (currentParams());
+    const auto p = currentParams();
+    if (! paramsValid || p != activeParams)
+    {
+        core->set (p);
+        activeParams = p;
+        paramsValid = true;
+    }
     const bool bypass = v (iByp) > 0.5f, delta = v (iDelta) > 0.5f, listen = v (iScListen) > 0.5f, autoOn = v (iAuto) > 0.5f;
     const int ring = (int) dryRingL.size(), la = std::min (ring - 1, core->latencySamples());
     const double outTarget = v (iOutput);
@@ -328,10 +339,14 @@ void CompProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         const double outPrev = outNow; outNow += (outTarget - outNow) * (1.0 - std::exp (-(double) m / (sr * 0.02)));
         autoGainDb = (float) agNow;
 
+        const float gStart = (float) std::pow (10.0, (agPrev + outPrev) / 20.0);
+        const float gEnd = (float) std::pow (10.0, (agNow + outNow) / 20.0);
+        const float gStep = (gEnd - gStart) / (float) m;
+        float g = gStart;
+
         for (int i = 0; i < m; ++i)
         {
-            const double f = (double) (i + 1) / m;
-            const float g = (float) std::pow (10.0, ((agPrev + (agNow - agPrev) * f) + (outPrev + (outNow - outPrev) * f)) / 20.0);
+            g += gStep;
             float yl = L[i] * g, yr = R[i] * g;
             if (bypass) { yl = delL[(size_t) i]; yr = delR[(size_t) i]; }
             else if (listen) { yl = tDetL[(size_t) i]; yr = tDetR[(size_t) i]; }

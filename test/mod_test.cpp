@@ -233,6 +233,37 @@ int main()
         check ("loudness: peak -20 dBFS, so PSR and PLR are 0", std::abs (v.pk + 20.0) < 0.05 && std::abs (v.pkMax - v.i) < 0.2, v.pk, v.pkMax - v.i);
     }
 
+    std::printf ("4g. expander, gate, auto release, knee expansion\n");
+    {
+        // Expander check: signal below threshold is attenuated
+        mod::Params pe; pe.dynMode = mod::DynExp; pe.threshold = -20; pe.ratio = 2.0; pe.knee = 0; pe.attack = 0.5; pe.release = 20;
+        mod::Core ce ((double) FS); ce.set (pe);
+        std::vector<float> se ((size_t) FS); for (int i = 0; i < FS; ++i) se[(size_t) i] = (float) (0.01 * std::sin (2 * mod::kPi * 1000.0 * i / FS)); // -40 dBFS (20 dB below threshold)
+        std::vector<float> oe1, oe2, gre; runBlocks (ce, se, se, oe1, oe2, &gre);
+        double grExp = 0; for (int i = FS / 2; i < FS; ++i) grExp = std::max (grExp, (double) gre[(size_t) i]);
+        check ("expander: -40 dBFS tone has ~20 dB GR (ratio 2:1)", std::abs (grExp - 20.0) < 2.0, grExp);
+
+        // Gate check: signal below threshold is silenced towards floor
+        mod::Params pg; pg.dynMode = mod::DynGate; pg.threshold = -20; pg.attack = 0.5; pg.release = 20;
+        mod::Core cg ((double) FS); cg.set (pg);
+        std::vector<float> og1, og2, grg; runBlocks (cg, se, se, og1, og2, &grg);
+        double grGate = 0; for (int i = FS / 2; i < FS; ++i) grGate = std::max (grGate, (double) grg[(size_t) i]);
+        check ("gate: -40 dBFS tone is attenuated by 60 dB floor", grGate >= 59.0, grGate);
+
+        // Knee expansion check: effectiveKnee computes reasonable non-zero values for all laws
+        for (int law = 0; law < 9; ++law)
+        {
+            mod::Params pk; pk.law = law; pk.knee = 8.0;
+            const double eff = mod::effectiveKnee (pk);
+            check (("effectiveKnee for law " + std::to_string (law)).c_str(), eff > 0.0, eff);
+        }
+
+        // Auto release check
+        mod::Params pa; pa.autoRel = true; pa.threshold = -20; pa.ratio = 4.0;
+        mod::Core ca ((double) FS); ca.set (pa);
+        check ("autoRel set without crashing", ca.params().autoRel == true);
+    }
+
     std::printf ("5. every model: finite, silent in = silent out, measured behaviour\n");
     std::printf ("   1 kHz sine at -10 dBFS for 3 s, then silence. H2 / H3 are relative to the fundamental.\n");
     std::printf ("   %-18s %4s %6s %8s %8s %9s %9s %7s %7s\n", "model", "OS", "lat", "GR dB", "att63", "rel63 ms", "rel90 ms", "H2 dB", "H3 dB");

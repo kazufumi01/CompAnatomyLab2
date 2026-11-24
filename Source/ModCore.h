@@ -21,6 +21,7 @@ namespace mod
 constexpr double kPi = 3.14159265358979323846;
 enum Det { DetPeak = 0, DetRMS, DetDiode, DetCrest };
 enum Law { LawIdeal = 0, LawFET, LawOpto, LawVariMu, LawDiode, LawLimit, LawRide, LawSpectral, LawClip };
+enum DynMode { DynComp = 0, DynExp, DynGate };
 enum Timing { TimOne = 0, TimProg2, TimOptoMem, TimAuto, TimPrecise, TimDualAvg };
 enum Element { ElClean = 0, ElFET, ElTube, ElOpto, ElDiode };
 enum OutStage { OutClean = 0, OutXfmr, OutTube, OutH2, OutH3, OutNickel, OutIron, OutSteel };
@@ -51,13 +52,36 @@ struct Params
     double relCurve = 0;                // release shape: 0 = exponential (fast first, then slow), 1 = linear in dB (constant dB per second)
     double grLimit = 40;                // most gain reduction allowed, dB (40 = off)
     // ⑥ element
-    int element = ElClean; double driveDb = 0; int os = 1;
+    int element = ElClean; double driveDb = 0, analogPct = 100; int os = 1;
     // ⑦ output
     int out = OutClean; double makeup = 0, mix = 1; bool bypass = false;
     // serial pre-stage (used by mod::Multi): an opto leveller, fixed 2:1, in front of the main compressor
     bool pre = false; double preThr = -20;
     // 3-band mode (used by mod::Multi, ignored by Core)
     bool mb = false; double xLo = 120, xHi = 2500, bandGain[3] { 0, 0, 0 };
+    // Auto release and dynamics mode
+    bool autoRel = false;
+    int dynMode = DynComp;
+
+    bool operator== (const Params& o) const
+    {
+        return input == o.input && inXfmr == o.inXfmr && scHpfHz == o.scHpfHz && scTilt == o.scTilt
+            && band == o.band && bandHz == o.bandHz && bandQ == o.bandQ && bandOnly == o.bandOnly
+            && link == o.link && scMb == o.scMb && scSens[0] == o.scSens[0] && scSens[1] == o.scSens[1] && scSens[2] == o.scSens[2]
+            && stereo == o.stereo && det == o.det && rmsMs == o.rmsMs && feedback == o.feedback
+            && crestDb == o.crestDb && law == o.law && threshold == o.threshold && ratio == o.ratio && knee == o.knee
+            && upOn == o.upOn && upThreshold == o.upThreshold && upRatio == o.upRatio && upRange == o.upRange
+            && timing == o.timing && attack == o.attack && release == o.release
+            && slowMult == o.slowMult && slowAmt == o.slowAmt && holdMs == o.holdMs && lookaheadMs == o.lookaheadMs
+            && avgMs == o.avgMs && relCurve == o.relCurve && grLimit == o.grLimit
+            && element == o.element && driveDb == o.driveDb && analogPct == o.analogPct && os == o.os
+            && out == o.out && makeup == o.makeup && mix == o.mix && bypass == o.bypass
+            && pre == o.pre && preThr == o.preThr
+            && mb == o.mb && xLo == o.xLo && xHi == o.xHi
+            && bandGain[0] == o.bandGain[0] && bandGain[1] == o.bandGain[1] && bandGain[2] == o.bandGain[2]
+            && autoRel == o.autoRel && dynMode == o.dynMode;
+    }
+    bool operator!= (const Params& o) const { return ! (*this == o); }
 };
 
 // ---- ④ static gain law: gain reduction (dB, ≥ 0) for a detector level (dB) ----
@@ -84,16 +108,68 @@ inline double lawGrRaw (double x, const Params& p)
     {
         // gain riding: move the level to the target (threshold), by at most ±upRange; input below upThreshold is idle (no change). Negative = gain up.
         case LawRide:   return x < p.upThreshold ? 0.0 : -std::max (-p.upRange, std::min (p.upRange, p.threshold - x));
-        case LawFET:    { const auto s = fetStep (p.ratio); return idealGr (x, p.threshold + s.dT, s.ratio, s.knee); }
-        case LawOpto:   { const double o = x - p.threshold + 4.0;  return o <= 0 ? 0.0 : (1.0 - 1.0 / p.ratio) * o * o / (o + 8.0); }
-        case LawVariMu: { const double o = x - p.threshold + 6.0;  return o <= 0 ? 0.0 : (1.0 - 1.0 / p.ratio) * o * o / (o + 12.0); }
-        case LawDiode:  return idealGr (x, p.threshold, p.ratio, 8.0);
-        case LawLimit:  return std::max (0.0, x - p.threshold);            // brick wall: nothing passes the threshold
+        case LawFET:    { const auto s = fetStep (p.ratio); return idealGr (x, p.threshold + s.dT, s.ratio, std::max (0.0, s.knee + (p.knee - 6.0))); }
+        case LawOpto:   { const double o = x - p.threshold + 4.0; const double k = std::max (0.1, 8.0 * (p.knee / 6.0)); return o <= 0 ? 0.0 : (1.0 - 1.0 / p.ratio) * o * o / (o + k); }
+        case LawVariMu: { const double o = x - p.threshold + 6.0; const double k = std::max (0.1, 12.0 * (p.knee / 6.0)); return o <= 0 ? 0.0 : (1.0 - 1.0 / p.ratio) * o * o / (o + k); }
+        case LawDiode:  return idealGr (x, p.threshold, p.ratio, std::max (0.2, 8.0 + (p.knee - 6.0)));
+        case LawLimit:  return p.knee <= 0.0 ? std::max (0.0, x - p.threshold) : idealGr (x, p.threshold, 1.0e6, p.knee);
         case LawClip:   return (p.ratio >= 99.5 && p.knee <= 0.0) ? std::max (0.0, x - p.threshold) : idealGr (x, p.threshold, p.ratio >= 99.5 ? 1.0e6 : p.ratio, p.knee);
         default:        return idealGr (x, p.threshold, p.ratio, p.knee);
     }
 }
 inline double lawGr (double x, const Params& p) { return std::min (lawGrRaw (x, p), p.grLimit >= 39.95 ? 1.0e9 : p.grLimit); }
+
+// Real-time effective knee width (dB) across all laws / elements
+inline double effectiveKnee (const Params& p)
+{
+    switch (p.law)
+    {
+        case LawIdeal:    return p.knee;
+        case LawFET:      { const auto s = fetStep (p.ratio); return std::max (0.0, s.knee + (p.knee - 6.0)); }
+        case LawOpto:     return std::max (0.1, 8.0 * (p.knee / 6.0)) * 1.25;
+        case LawVariMu:   return std::max (0.1, 12.0 * (p.knee / 6.0)) * 1.20;
+        case LawDiode:    return std::max (0.2, 8.0 + (p.knee - 6.0));
+        case LawLimit:    return p.knee;
+        case LawClip:     return p.knee;
+        case LawSpectral: return p.knee;
+        default:          return p.knee;
+    }
+}
+
+// Downward Expander: attenuates signals below threshold with smooth knee transition
+inline double expanderGr (double x, const Params& p)
+{
+    const double T = p.threshold, R = std::max (1.0, p.ratio), W = effectiveKnee (p);
+    const double d = T - x; // amount below threshold (dB)
+    if (d <= -W / 2.0) return 0.0;
+    double gr = 0.0;
+    if (W > 0.0 && std::abs (d) <= W / 2.0)
+        gr = (R - 1.0) * (d + W / 2.0) * (d + W / 2.0) / (2.0 * W);
+    else
+        gr = (R - 1.0) * d;
+    return std::min (p.grLimit >= 39.95 ? 60.0 : p.grLimit, std::max (0.0, gr));
+}
+
+// Noise Gate: steep attenuation below threshold with smooth transition
+inline double gateGr (double x, const Params& p)
+{
+    const double T = p.threshold, W = std::max (0.5, effectiveKnee (p));
+    const double floorDb = std::min (p.grLimit >= 39.95 ? 60.0 : p.grLimit, 60.0);
+    const double d = T - x;
+    if (d <= -W / 2.0) return 0.0;
+    if (d >= W / 2.0) return floorDb;
+    const double t = (d + W / 2.0) / W;
+    const double smooth = t * t * (3.0 - 2.0 * t);
+    return smooth * floorDb;
+}
+
+// Combined dynamics gain reduction (Compressor / Expander / Gate)
+inline double dynLawGr (double x, const Params& p)
+{
+    if (p.dynMode == DynExp)  return expanderGr (x, p);
+    if (p.dynMode == DynGate) return gateGr (x, p);
+    return lawGr (x, p);
+}
 // upward compression: boost (dB, ≥ 0) for a detector level below upThreshold. Very quiet input (< −70 dB) is not lifted.
 inline double lawUp (double x, const Params& p)
 {
@@ -204,9 +280,11 @@ public:
         if (osChanged) reset();
         auto tc = [this] (double ms) { return std::exp (-1.0 / (std::max (ms, 0.001) * 0.001 * fs)); };
         aA = tc (p.attack); aR = tc (p.release); aM = tc (p.rmsMs); aAvg = tc (p.avgMs);
-        const bool autoT = p.timing == TimAuto;
-        aSlowUp = tc (autoT ? 400.0 : 200.0); aSlowDn = tc (autoT ? 1500.0 : p.release * p.slowMult); aFastDn = autoT ? tc (100.0) : aR;
-        slowAmt = autoT ? 0.7 : p.slowAmt;
+        const bool autoT = p.timing == TimAuto || p.autoRel;
+        aSlowUp = tc (autoT ? 400.0 : 200.0);
+        aSlowDn = tc (autoT ? (p.autoRel ? std::max (p.release * 2.5, 600.0) : 1500.0) : p.release * p.slowMult);
+        aFastDn = autoT ? tc (p.autoRel ? std::min (p.release * 0.5, 80.0) : 100.0) : aR;
+        slowAmt = autoT ? 0.65 : p.slowAmt;
         oSA = tc (30); oMU = tc (1500); oMD = tc (4000);
         dcR = std::exp (-2.0 * kPi * 8.0 / fs); xfK = 1.0 - std::exp (-2.0 * kPi * 70.0 / fs);
         laBase = (int) std::lround (std::max (0.0, p.lookaheadMs) * 0.001 * fsBase); la = std::min (dsize - 2, laBase * os); laBase = la / os;
@@ -240,7 +318,7 @@ public:
             ms[c] = y1[c] = y2[c] = gS[c] = mem[c] = avg[c] = gs[c] = fb[c] = yUp[c] = yRms[c] = 0; xfIn[c] = xfOut[c] = xfLp[c] = 0;
             for (auto& d : dc[c]) d[0] = d[1] = 0;
         }
-        scLp.reset(); scHp.reset(); for (auto& b : msB) b[0] = b[1] = 0; yRide[0] = yRide[1] = 0;
+        scLp.reset(); scHp.reset(); for (auto& b : msB) b[0] = b[1] = 0; yRide[0] = yRide[1] = 0; yEnv[0] = yEnv[1] = -140.0;
         hpf.reset(); tilt.reset(); bandSc.reset(); bandAu.reset(); w = 0;
     }
 
@@ -289,8 +367,18 @@ public:
 
 private:
     double dcBlock (int c, int k, double u) { auto& d = dc[c][k]; const double y = u - d[0] + dcR * d[1]; d[0] = u; d[1] = y; return y; }
-    // transformer: only the lows saturate (flux grows as frequency falls)
-    double xfmr (double x, double& st, double d) { st += xfK * (x - st); return (x - st) + std::tanh (d * st) / d; }
+    double analogMix (double dry, double modeled) const
+    {
+        const double amount = std::max (0.0, std::min (2.0, p.analogPct * 0.01));
+        return dry + (modeled - dry) * amount;
+    }
+    // transformer: only the lows saturate (flux grows as frequency falls) + magnetic hysteresis & saturation detail
+    double xfmr (double x, double& st, double d)
+    {
+        st += xfK * (x - st);
+        const double sat = std::tanh (d * st + 0.04 * st * std::abs (st)) / d;
+        return (x - st) + sat;
+    }
 
     // attack / release step. The release blends from exponential to linear-in-dB with relCurve (dB-domain detectors only).
     double follow (double y, double u, double aAtt, double aRel) const
@@ -303,6 +391,13 @@ private:
     // ⑤ timing: follows the target u (GR in dB, or detector voltage for the diode detector)
     double ballistics (int c, double u, double grNow)
     {
+        if (p.autoRel && p.timing != TimAuto && p.timing != TimProg2)
+        {
+            y1[c] = follow (y1[c], u, aA, aFastDn);
+            const double s = u > y2[c] ? aSlowUp : aSlowDn; y2[c] = s * y2[c] + (1 - s) * u;
+            slowNow[c] = slowAmt * y2[c];
+            return std::max (y1[c], slowNow[c]);
+        }
         switch (p.timing)
         {
             case TimProg2: case TimAuto:
@@ -341,29 +436,39 @@ private:
     // ⑥ gain element: where the level is actually turned down
     double element (int c, double wv, double g)
     {
+        if (p.analogPct <= 0.0) return wv;
         const double gn = std::min (g, 20.0) / 20.0;
         switch (p.element)
         {
-            case ElFET:   { const double dv = (0.4 + 1.2 * gn) * drv, a2 = 0.03 + 0.22 * gn; return dcBlock (c, 0, std::tanh (dv * (wv + a2 * wv * wv)) / dv); }
+            case ElFET:   { const double dv = (0.4 + 1.2 * gn) * drv, a2 = 0.03 + 0.22 * gn;
+                            const double wet = dcBlock (c, 0, std::tanh (dv * (wv + a2 * wv * wv - 0.02 * dv * wv * wv * wv)) / dv);
+                            return analogMix (wv, wet); }
             case ElTube:  { const double dv = (0.7 + 0.3 * gn) * drv, a2 = 0.25, mis = 0.04;      // push-pull: even harmonics cancel except for the mismatch
                             const double pos = std::tanh (dv * (wv + a2 * wv * wv)), neg = std::tanh (dv * (-wv + a2 * wv * wv));
-                            return dcBlock (c, 0, 0.5 * ((1 + mis) * pos - (1 - mis) * neg) / dv); }
-            case ElDiode: { const double k = (0.08 + 0.45 * gn) * drv; return wv / (1.0 + k * std::abs (wv)); }
+                            const double wet = dcBlock (c, 0, 0.5 * ((1 + mis) * pos - (1 - mis) * neg) / dv);
+                            return analogMix (wv, wet); }
+            case ElOpto:  { const double dv = (0.15 + 0.25 * gn) * drv;
+                            const double wet = dcBlock (c, 0, wv - 0.02 * dv * wv * wv * wv);
+                            return analogMix (wv, wet); }               // subtle smooth CdS cell soft saturation
+            case ElDiode: { const double k = (0.08 + 0.45 * gn) * drv;
+                            const double wet = std::tanh ((1.0 + 0.2 * k) * wv) / (1.0 + k * (0.85 * std::abs (wv) + 0.15 * wv * wv));
+                            return analogMix (wv, wet); }
             default: return wv;
         }
     }
     double outStage (int c, double v)
     {
+        if (p.analogPct <= 0.0) return v;
         switch (p.out)
         {
-            case OutXfmr: return xfmr (v, xfOut[c], 1.5);
-            case OutTube: return dcBlock (c, 1, std::tanh (0.6 * (v + 0.08 * v * v)) / 0.6);
-            case OutH2:   return dcBlock (c, 1, std::tanh (0.8 * (v + 0.30 * v * v)) / 0.8);
-            case OutH3:   return std::tanh (1.6 * v) / 1.6;
-            case OutNickel: { const double u = xfmr (v, xfOut[c], 0.6); xfLp[c] += kHf * (u - xfLp[c]); return u + 0.07 * (u - xfLp[c]); }                 // cleanest, a little air
+            case OutXfmr: { const double wet = xfmr (v, xfOut[c], 1.5); return analogMix (v, wet); }
+            case OutTube: { const double wet = dcBlock (c, 1, std::tanh (0.6 * (v + 0.08 * v * v)) / 0.6); return analogMix (v, wet); }
+            case OutH2:   { const double wet = dcBlock (c, 1, std::tanh (0.8 * (v + 0.30 * v * v)) / 0.8); return analogMix (v, wet); }
+            case OutH3:   { const double wet = std::tanh (1.6 * v) / 1.6; return analogMix (v, wet); }
+            case OutNickel: { const double u = xfmr (v, xfOut[c], 0.6); xfLp[c] += kHf * (u - xfLp[c]); const double wet = u + 0.07 * (u - xfLp[c]); return analogMix (v, wet); }                 // cleanest, a little air
             case OutIron:   { double u = xfmr (v, xfOut[c], 1.5); u = dcBlock (c, 1, std::tanh (0.7 * (u + 0.12 * u * u)) / 0.7);                         // even harmonics, fuller upper lows
-                              xfLp[c] += kLo * (u - xfLp[c]); return u + 0.10 * xfLp[c]; }
-            case OutSteel:  { double u = xfmr (v, xfOut[c], 3.0); u = std::tanh (1.2 * u) / 1.2; xfLp[c] += kLo * 0.6 * (u - xfLp[c]); return u + 0.08 * xfLp[c]; }   // most distortion, tight lows
+                              xfLp[c] += kLo * (u - xfLp[c]); const double wet = u + 0.10 * xfLp[c]; return analogMix (v, wet); }
+            case OutSteel:  { double u = xfmr (v, xfOut[c], 3.0); u = std::tanh (1.2 * u) / 1.2; xfLp[c] += kLo * 0.6 * (u - xfLp[c]); const double wet = u + 0.08 * xfLp[c]; return analogMix (v, wet); }   // most distortion, tight lows
             default: return v;
         }
     }
@@ -406,28 +511,36 @@ private:
             {
                 const double ax = std::abs (x[c]), am = std::max (std::abs (x[0]), std::abs (x[1]));
                 const double lc = ((p.stereo == 2 && c == 1) || (p.stereo == 3 && c == 0)) ? 0.0 : p.link * am + (1.0 - p.link) * ax;
-                gs[c] = lawGr (lc > 1e-7 ? 20.0 * std::log10 (lc) : -140.0, p); slowNow[c] = 0;
+                gs[c] = dynLawGr (lc > 1e-7 ? 20.0 * std::log10 (lc) : -140.0, p); slowNow[c] = 0;
             }
             else if (p.law == LawRide)                              // gain riding: a slow fader towards the target level, held while the input is idle
             {
                 const double ldb = l > 1e-7 ? 20.0 * std::log10 (l) : -140.0;
-                if (ldb >= p.upThreshold) { const double t = -lawGr (ldb, p), a = t < yRide[c] ? aA : aR; yRide[c] = a * yRide[c] + (1 - a) * t; }
+                if (ldb >= p.upThreshold) { const double t = -dynLawGr (ldb, p), a = t < yRide[c] ? aA : aR; yRide[c] = a * yRide[c] + (1 - a) * t; }
                 gs[c] = -yRide[c]; slowNow[c] = 0;
             }
             else if (p.det == DetDiode)                             // rectifier + RC: timing acts on the voltage, before the gain law
             {
                 const double v = ballistics (c, l, gs[c]);
-                gs[c] = lawGr (v > 1e-7 ? 20.0 * std::log10 (v) : -140.0, p);
+                gs[c] = dynLawGr (v > 1e-7 ? 20.0 * std::log10 (v) : -140.0, p);
             }
             else if (p.det == DetCrest)                             // peak path (threshold raised by the crest setting) and RMS path, whichever asks for more
             {
                 const double lr = p.link * mxR + (1.0 - p.link) * levR[c];
-                const double gP = ballistics (c, lawGr ((l > 1e-7 ? 20.0 * std::log10 (l) : -140.0) - p.crestDb, p), gs[c]);
-                const double tR = lawGr (lr > 1e-7 ? 20.0 * std::log10 (lr) : -140.0, p), a = tR > yRms[c] ? aA : aCrest;
+                const double gP = ballistics (c, dynLawGr ((l > 1e-7 ? 20.0 * std::log10 (l) : -140.0) - p.crestDb, p), gs[c]);
+                const double tR = dynLawGr (lr > 1e-7 ? 20.0 * std::log10 (lr) : -140.0, p), a = tR > yRms[c] ? aA : aCrest;
                 yRms[c] = a * yRms[c] + (1 - a) * tR; slowNow[c] = yRms[c];
                 gs[c] = std::max (gP, yRms[c]);
             }
-            else gs[c] = ballistics (c, lawGr (l > 1e-7 ? 20.0 * std::log10 (l) : -140.0, p), gs[c]);
+            else if (p.dynMode != DynComp)
+            {
+                // Expander / Gate: smooth input envelope first, then apply expansion / gating law
+                const double inDb = l > 1e-7 ? 20.0 * std::log10 (l) : -140.0;
+                yEnv[c] = inDb > yEnv[c] ? (aA * yEnv[c] + (1 - aA) * inDb) : (aR * yEnv[c] + (1 - aR) * inDb);
+                const double targetGr = dynLawGr (yEnv[c], p);
+                gs[c] = follow (gs[c], targetGr, aA, aFastDn); slowNow[c] = 0;
+            }
+            else gs[c] = ballistics (c, dynLawGr (l > 1e-7 ? 20.0 * std::log10 (l) : -140.0, p), gs[c]);
 
             dly[c][(size_t) w] = x[c]; int r = w - la; if (r < 0) r += dsize;
             if (p.upOn && p.law != LawRide)                         // upward: fast when the boost has to come down, slow when it rises
@@ -456,7 +569,7 @@ private:
     std::vector<double> dly[2], gdl[2]; int dsize = 0, w = 0, la = 0, laBase = 0, lb = 0;
     SlideMax smax[2]; Boxcar box[2]; Fir up1[2], dn1[2], up2[2], dn2[2];
     Biquad hpf, tilt, bandSc, bandAu; bool hpfOn = false;
-    Biquad scLp, scHp; double scW[3] { 1, 1, 1 }, msB[3][2] {}, yRide[2] {};
+    Biquad scLp, scHp; double scW[3] { 1, 1, 1 }, msB[3][2] {}, yRide[2] {}, yEnv[2] { -140.0, -140.0 };
     double ms[2] {}, y1[2] {}, y2[2] {}, gS[2] {}, mem[2] {}, avg[2] {}, gs[2] {}, fb[2] {}, slowNow[2] {}, xfIn[2] {}, xfOut[2] {}, dc[2][2][2] {};
     double aA = 0, aR = 0, aM = 0, aAvg = 0, aSlowUp = 0, aSlowDn = 0, aFastDn = 0, slowAmt = 0.5, oSA = 0, oMU = 0, oMD = 0, dcR = 0, xfK = 0, gIn = 1, gMk = 1, drv = 1;
     double tGr = 0, tSlow = 0, tIn = 0, tUp = 0, tDet[2] {}, yUp[2] {}, thrLin = 1, yRms[2] {}, xfLp[2] {}, linStep = 0, aCrest = 0, kHf = 0, kLo = 0;

@@ -80,7 +80,8 @@ private:
         const float W = (float) getWidth(), gx0 = 16.0f, gx1 = W - 12.0f, split = gx0 + (gx1 - gx0) * 0.575f;
         const float yIn0 = 33, yIn1 = 47, gy0 = 60, gy1 = 142;
         const auto p = ph.proc.currentParams();
-        const bool opto = false;
+        const bool opto = p.timing == mod::TimOptoMem;
+        const bool autoOn = p.autoRel || p.timing == mod::TimAuto || p.timing == mod::TimProg2;
         // the input strip and the axis break are drawn even when there is nothing to measure
         const float dash[] { 2.0f, 2.0f };
         g.setColour (theme::muted); g.setFont (theme::mono (7.0f)); g.drawText ("IN", 8, (int) yIn0, 14, 14, juce::Justification::centredLeft);
@@ -100,7 +101,19 @@ private:
         const double preMs = std::min (step.preMs, aMax * 0.12);      // short lead-in so a fast attack still fills the plot
         const float aL = gx0 + 12.0f, aR = split - 7.0f, rL = split + 9.0f, rR = gx1;
         auto tA = [&] (double ms) { return aL + (float) ((ms + preMs) / (aMax + preMs)) * (aR - aL); };
-        auto tR = [&] (double ms) { return rL + (float) (ms / rMax) * (rR - rL); };
+        auto releaseFrac = [&] (double ms)
+        {
+            ms = juce::jlimit (0.0, rMax, ms);
+            if (rMax <= 1000.0)
+                return ms / rMax;
+            const double fast = 500.0;
+            if (ms <= fast)
+                return (ms / fast) * 0.30;
+            const double hi = rMax, lo = fast;
+            const double f = std::log1p ((ms - lo) / 100.0) / std::log1p ((hi - lo) / 100.0);
+            return 0.30 + 0.70 * juce::jlimit (0.0, 1.0, f);
+        };
+        auto tR = [&] (double ms) { return rL + (float) releaseFrac (ms) * (rR - rL); };
         const double fin = step.finalGr; const float dbpx = (gy1 - gy0 - 8.0f) / (float) fin;
         auto yG = [&] (double db) { return gy0 + (float) db * dbpx; };
         // input strip
@@ -132,7 +145,7 @@ private:
         for (int i = 0; i <= nr; ++i)
         {
             const double ms = rMax * i / nr; const size_t k = (size_t) (ms * 0.001 * step.fs);
-            const float gr = k < step.release.size() ? step.release[k] : 0.0f, x = rL + (rR - rL) * i / nr;
+            const float gr = k < step.release.size() ? step.release[k] : 0.0f, x = tR (ms);
             if (i == 0) { rc.startNewSubPath (rL, yG (fin)); rc.lineTo (x, yG (gr)); } else rc.lineTo (x, yG (gr));
         }
         g.strokePath (rc, juce::PathStrokeType (1.8f));
@@ -141,7 +154,8 @@ private:
             juce::Path sp;
             for (int i = 0; i <= nr; ++i)
             {
-                const size_t k = (size_t) (rMax * i / nr * 0.001 * step.fs); const float s = k < step.slowRel.size() ? std::min ((float) fin, step.slowRel[k]) : 0.0f, x = rL + (rR - rL) * i / nr;
+                const double ms = rMax * i / nr;
+                const size_t k = (size_t) (ms * 0.001 * step.fs); const float s = k < step.slowRel.size() ? std::min ((float) fin, step.slowRel[k]) : 0.0f, x = tR (ms);
                 if (i == 0) sp.startNewSubPath (x, yG (s)); else sp.lineTo (x, yG (s));
             }
             g.setColour (theme::phase); g.strokePath (sp, juce::PathStrokeType (1.1f));
@@ -150,6 +164,22 @@ private:
         g.setColour (theme::muted); g.setFont (theme::ui (7.5f));
         g.drawText (ph.tr ("Attack 区間（黄＝まだ絞れていない量）", "Attack (yellow = not reduced yet)"), (int) aL, (int) gy0 - 12, (int) (aR - aL) + 8, 10, juce::Justification::centredLeft);
         g.drawText (ph.tr ("Release 区間（軸を縮小）", "Release (time axis compressed)"), (int) rL, (int) gy0 - 12, (int) (rR - rL), 10, juce::Justification::centredLeft);
+        g.setColour (theme::grid);
+        g.drawHorizontalLine ((int) gy1 + 8, rL, rR);
+        g.setFont (theme::mono (6.5f));
+        std::vector<double> releaseTicks;
+        if (rMax <= 300.0) releaseTicks = { 0.0, 50.0, 100.0, 200.0, rMax };
+        else if (rMax <= 1000.0) releaseTicks = { 0.0, 100.0, 300.0, 600.0, rMax };
+        else releaseTicks = { 0.0, 100.0, 500.0, 1000.0, 3000.0, 10000.0, rMax };
+        for (double ms : releaseTicks)
+        {
+            if (ms > rMax) continue;
+            const float x = tR (ms);
+            g.setColour (theme::grid); g.drawVerticalLine ((int) x, gy1 + 2, gy1 + 10);
+            g.setColour (theme::muted);
+            juce::String t = ms < 1000.0 ? juce::String (juce::roundToInt (ms)) : juce::String (ms / 1000.0, ms >= 10000.0 ? 0 : 1) + "s";
+            g.drawText (t, (int) x - 14, gy1 + 10, 28, 9, juce::Justification::centred);
+        }
         // markers
         const float bot = gy1 + 2;
         if (step.a63 > 0) marker (g, tA (step.a63), yG (fin * (1 - std::exp (-1.0))), yIn1, bot, fmtTime (step.a63), theme::text, true);
@@ -162,7 +192,14 @@ private:
         // readouts
         const bool ja = ph.ja();
         const juce::String atSet = opto ? ph.tr ("（光学は固定）", "(Opto: fixed)") : ph.tr ("設定", "set") + " " + fmtTime (p.attack);
-        const juce::String reSet = opto ? ph.tr ("（光学は固定）", "(Opto: fixed)") : ph.tr ("設定", "set") + " " + fmtTime (p.release);
+        juce::String reSet;
+        if (autoOn)
+        {
+            const double fastMs = p.autoRel ? std::min (p.release * 0.5, 80.0) : 100.0;
+            const double slowMs = p.autoRel ? std::max (p.release * 2.5, 600.0) : 1500.0;
+            reSet = ph.tr ("AUTO Fast ", "AUTO fast ") + fmtTime (fastMs) + juce::String::fromUTF8 (" \xef\xbc\x8f ") + ph.tr ("Slow ", "slow ") + fmtTime (slowMs);
+        }
+        else reSet = opto ? ph.tr ("（光学は固定）", "(Opto: fixed)") : ph.tr ("設定", "set") + " " + fmtTime (p.release);
         const bool eff = ! opto && std::abs (step.a63 - p.attack) > 0.06 * p.attack + 0.02;
         g.setFont (theme::ui (8.5f, true)); g.setColour (eff ? theme::accent : theme::pre);
         const juce::String eq = ja ? juce::String::fromUTF8 ("\xef\xbc\x9d") : juce::String (" = "), sep = juce::String::fromUTF8 ("\xef\xbc\x8f"), arrow = juce::String::fromUTF8 (" \xe2\x86\x92 ");
@@ -232,7 +269,7 @@ private:
     }
 
     ParamHelp& ph;
-    mod::StepResult step; std::array<double, 19> key {}; int keyOver = 0; bool haveKey = false; juce::uint32 lastCalc = 0, holdUntil = 0;
+    mod::StepResult step; std::array<double, 20> key {}; int keyOver = 0; bool haveKey = false; juce::uint32 lastCalc = 0, holdUntil = 0;
     int lastVer = -1;
     std::vector<float> live; int livePre = 0; double liveFs = 48000, lt63 = -1, lt90 = -1, lt99 = -1; float livePeak = 1;
 };
