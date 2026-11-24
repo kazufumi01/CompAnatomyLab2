@@ -1,5 +1,18 @@
 #include "PluginEditor.h"
 
+namespace
+{
+std::vector<int> modelMenuOrder()
+{
+    std::vector<int> order;
+    for (const auto& group : mod::menuGroups())
+        for (auto* id : group.ids)
+            if (const int index = mod::modelIndexOf (id); index >= 0)
+                order.push_back (index);
+    return order;
+}
+}
+
 CompView::CompView (CompProcessor& p) : proc (p)
 {
     // the look is shared by every instance on this computer
@@ -32,8 +45,20 @@ CompView::CompView (CompProcessor& p) : proc (p)
     addAndMakeVisible (modelBox);
     modelPrevBtn.setButtonText ("<");
     modelNextBtn.setButtonText (">");
-    modelPrevBtn.onClick = [this] { const int id = modelBox.getSelectedId(); if (id > 1) modelBox.setSelectedId (id - 1); else if (modelBox.getNumItems() > 0) modelBox.setSelectedId (modelBox.getNumItems()); };
-    modelNextBtn.onClick = [this] { const int id = modelBox.getSelectedId(); if (id < modelBox.getNumItems()) modelBox.setSelectedId (id + 1); else if (modelBox.getNumItems() > 0) modelBox.setSelectedId (1); };
+    auto stepModel = [this] (int dir)
+    {
+        const auto order = modelMenuOrder();
+        if (order.empty()) return;
+        const auto current = std::find (order.begin(), order.end(), proc.currentModel());
+        const int position = current == order.end() ? (dir > 0 ? -1 : 0) : (int) std::distance (order.begin(), current);
+        const int next = (position + dir + (int) order.size()) % (int) order.size();
+        const int model = order[(size_t) next];
+        proc.applyModel (model);
+        modelBox.setSelectedId (model + 1, juce::dontSendNotification);
+        refreshTexts();
+    };
+    modelPrevBtn.onClick = [stepModel] { stepModel (-1); };
+    modelNextBtn.onClick = [stepModel] { stepModel (1); };
     addAndMakeVisible (modelPrevBtn); addAndMakeVisible (modelNextBtn);
     setHelp (modelPrevBtn, "MODEL <", "前のモデルへ切り替え", "Previous model");
     setHelp (modelNextBtn, "MODEL >", "次のモデルへ切り替え", "Next model");
@@ -187,13 +212,12 @@ void CompView::stepPreset (int dir)
 {
     struct E { int kind, index; juce::File file; };
     std::vector<E> list; const auto& ps = preset::all();
-    for (auto& grp : mod::menuGroups())
-        for (auto* gid : grp.ids)
-        {
-            const int mi = mod::modelIndexOf (gid); if (mi < 0) continue;
-            list.push_back ({ 0, mi, {} });
-            for (int i = 0; i < (int) ps.size(); ++i) if (preset::modelIndex (ps[(size_t) i].model) == mi) list.push_back ({ 1, i, {} });
-        }
+    for (const int mi : modelMenuOrder())
+    {
+        list.push_back ({ 0, mi, {} });
+        for (int i = 0; i < (int) ps.size(); ++i)
+            if (preset::modelIndex (ps[(size_t) i].model) == mi) list.push_back ({ 1, i, {} });
+    }
     for (auto& f : proc.userPresets()) list.push_back ({ 2, -1, f });
     if (list.empty()) return;
     const int kind = (int) proc.uiState.getProperty ("presetKind", 0);
@@ -270,11 +294,6 @@ void CompView::showLockMenu()
 void CompView::refreshTexts()
 {
     langBtn.setButtonText (ph.ja() ? juce::String::fromUTF8 ("日本語") : juce::String ("English"));
-    if (! modelBox.isPopupActive())
-    {
-        const int m = proc.currentModel();
-        if (m >= 0 && m < (int) mod::models().size() && modelBox.getSelectedId() != m + 1) modelBox.setSelectedId (m + 1, juce::dontSendNotification);
-    }
     const auto label = proc.presetLabel (ph.ja());
     presetBtn.getProperties().set ("fontPx", 11.0);
     presetBtn.setButtonText (label.isEmpty() ? juce::String ("PRESET") : label);
@@ -301,7 +320,7 @@ void CompView::paint (juce::Graphics& g)
     g.setColour (theme::panel); g.fillRoundedRectangle (outV.getBounds().toFloat(), 5.0f);          // OUT sits on the surface: give it a panel so its text reads in every look
     g.setColour (theme::line); g.drawRoundedRectangle (outV.getBounds().toFloat().reduced (0.5f), 5.0f, 1.0f);
     g.setColour (theme::text); g.setFont (theme::mono (11.5f, true));
-    g.drawText ("COMP ANATOMY LAB 2 DEV", 12, 6, 175, 20, juce::Justification::centredLeft);
+    g.drawText ("COMP ANATOMY LAB 2", 12, 6, 175, 20, juce::Justification::centredLeft);
     g.setColour (theme::faint); g.setFont (theme::ui (9.0f));
     g.drawText ("by Johan Plus Kei", 12, 24, 150, 14, juce::Justification::centredLeft);
     const int lat = proc.getLatencySamples(); const double fs = proc.getSampleRateOrDefault();
@@ -409,7 +428,16 @@ void CompView::timerCallback()
     if (specTab) spectrum.refresh(); else timeView.repaint();
     transfer.repaint();
     const bool panelMode = viewModeOf (proc.uiState) != 4;
-    if (const int m = proc.currentModel(); m != idsFor) { idsFor = m; flow.panelIds = m >= 0 && m < (int) mod::models().size() ? panel::ids (mod::models()[(size_t) m].id) : juce::StringArray(); }
+    if (const int m = proc.currentModel(); m != idsFor)
+    {
+        idsFor = m;
+        if (m >= 0 && m < (int) mod::models().size())
+        {
+            flow.panelIds = panel::ids (mod::models()[(size_t) m].id);
+            if (! modelBox.isPopupActive()) modelBox.setSelectedId (m + 1, juce::dontSendNotification);
+        }
+        else flow.panelIds.clear();
+    }
     panelView.setVisible (panelMode);                                 // the panel is see-through: the signal flow stays underneath
     flow.refresh(); if (panelMode) panelView.refresh();
     outV.repaint(); info.tick(); loud.repaint();
