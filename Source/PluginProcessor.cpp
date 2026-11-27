@@ -9,11 +9,11 @@ const char* kIds[] = { pid::input, pid::inXfmr, pid::scSource, pid::scHpf, pid::
                        pid::element, pid::drive, pid::analog, pid::os, pid::outStage, pid::makeup, pid::mix,
                        pid::scListen, pid::output, pid::autoGain, pid::delta, pid::bypass,
                        pid::upOn, pid::upThr, pid::upRatio, pid::upRange, pid::mb, pid::xLo, pid::xHi, pid::mbLo, pid::mbMid, pid::mbHi, pid::relCurve, pid::crest, pid::grLimit, pid::stereo, pid::scMb, pid::scLo, pid::scMid, pid::scHi, pid::pre, pid::preThr,
-                       pid::autoRel, pid::dynMode };
+                       pid::autoRel, pid::dynMode, pid::tpDet, pid::attCurve, pid::crestRel, pid::fbPost, pid::toneIr };
 enum { iInput, iInX, iScSrc, iHpf, iTilt, iLink, iBand, iBandHz, iBandQ, iBandOnly, iDet, iRms, iTopo, iLaw, iThr, iRatio, iKnee,
        iTiming, iAtt, iRel, iSlowM, iSlowA, iHold, iLook, iAvg, iElem, iDrive, iAnalog, iOs, iOut, iMakeup, iMix, iScListen, iOutput, iAuto, iDelta, iByp,
        iUpOn, iUpThr, iUpRatio, iUpRange, iMb, iXLo, iXHi, iMbLo, iMbMid, iMbHi, iRelCurve, iCrest, iGrLimit, iStereo, iScMb, iScLo, iScMid, iScHi, iPre, iPreThr,
-       iAutoRel, iDynMode };
+       iAutoRel, iDynMode, iTpDet, iAttCurve, iCrestRel, iFbPost, iToneIr };
 
 // 8 s of a drum-like loop for the preview before any audio has arrived
 void builtinLoop (std::vector<float>& L, std::vector<float>& R, double fs)
@@ -73,6 +73,8 @@ mod::Params CompProcessor::currentParams() const
     p.stereo = (int) v (iStereo); p.scMb = v (iScMb) > 0.5f; p.scSens[0] = v (iScLo); p.scSens[1] = v (iScMid); p.scSens[2] = v (iScHi);
     p.pre = v (iPre) > 0.5f; p.preThr = v (iPreThr);
     p.autoRel = v (iAutoRel) > 0.5f; p.dynMode = (int) v (iDynMode);
+    p.tpDet = v (iTpDet) > 0.5f; p.attCurve = v (iAttCurve) / 100.0; p.crestRel = v (iCrestRel) / 100.0;
+    p.fbPost = v (iFbPost) > 0.5f; p.toneIr = (int) v (iToneIr);
     if (p.law == mod::LawSpectral) p.mb = false;                    // spectral compression already works per frequency
     switch (quizKind.load (std::memory_order_relaxed))               // ear training: the question's value, whatever the screen shows
     {
@@ -100,7 +102,7 @@ mod::Params CompProcessor::currentParams() const
         }
         if (p.law != mod::LawIdeal) p.knee = 6;
         p.law = mod::LawIdeal; p.det = mod::DetPeak; p.feedback = false; p.timing = mod::TimOne; p.element = mod::ElClean; p.out = mod::OutClean;
-        p.inXfmr = false; p.pre = false; p.driveDb = 0; p.relCurve = 0; p.holdMs = 0;
+        p.inXfmr = false; p.pre = false; p.driveDb = 0; p.attCurve = 0; p.relCurve = 0; p.crestRel = 0; p.holdMs = 0; p.tpDet = false; p.fbPost = false; p.toneIr = 0;
     }
     return p;
 }
@@ -250,14 +252,68 @@ void CompProcessor::setLocked (const juce::String& id, bool on)
 }
 void CompProcessor::clearLocks() { locks.clear(); uiState.setProperty ("locks", juce::String(), nullptr); }
 
+juce::String CompProcessor::userIrName() const
+{
+    const auto path = uiState.getProperty ("userIrPath", "").toString();
+    return path.isNotEmpty() ? juce::File (path).getFileNameWithoutExtension() : juce::String();
+}
+
+void CompProcessor::installUserIrForRate (double sampleRate)
+{
+    if (rawIrL.empty() || sampleRate <= 0.0) return;
+    const double ratio = rawIrSr / sampleRate;
+    const int srcLen = (int) rawIrL.size();
+    const int dstLen = juce::jlimit (1, XfadeConvolver::maxIRLength, (int) std::lround (srcLen / ratio));
+    std::vector<float> l ((size_t) dstLen, 0.0f), r ((size_t) dstLen, 0.0f);
+    double eSum = 0.0;
+    for (int i = 0; i < dstLen; ++i)
+    {
+        const double sp = i * ratio;
+        const int i0 = std::min (srcLen - 1, (int) sp), i1 = std::min (srcLen - 1, i0 + 1);
+        const float frac = (float) (sp - i0);
+        l[(size_t) i] = rawIrL[(size_t) i0] + frac * (rawIrL[(size_t) i1] - rawIrL[(size_t) i0]);
+        r[(size_t) i] = rawIrR[(size_t) i0] + frac * (rawIrR[(size_t) i1] - rawIrR[(size_t) i0]);
+        eSum += 0.5 * ((double) l[(size_t) i] * l[(size_t) i] + (double) r[(size_t) i] * r[(size_t) i]);
+    }
+    if (eSum > 1e-12)
+    {
+        const float norm = (float) (1.0 / std::sqrt (eSum));
+        for (int i = 0; i < dstLen; ++i) { l[(size_t) i] *= norm; r[(size_t) i] *= norm; }
+    }
+    userIrConv.loadImpulseResponse (l.data(), r.data(), dstLen);
+    userIrLoaded = true;
+}
+
+bool CompProcessor::loadUserIrFile (const juce::File& f)
+{
+    if (! f.existsAsFile()) return false;
+    juce::AudioFormatManager fm; fm.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> rd (fm.createReaderFor (f));
+    if (rd == nullptr || rd->lengthInSamples <= 0 || rd->sampleRate <= 0) return false;
+    const int len = (int) std::min<juce::int64> (rd->lengthInSamples, 65536);
+    juce::AudioBuffer<float> tmp ((int) std::max (1u, rd->numChannels), len);
+    rd->read (&tmp, 0, len, 0, true, true);
+    rawIrSr = rd->sampleRate;
+    rawIrL.assign (tmp.getReadPointer (0), tmp.getReadPointer (0) + len);
+    const float* rPtr = tmp.getNumChannels() > 1 ? tmp.getReadPointer (1) : tmp.getReadPointer (0);
+    rawIrR.assign (rPtr, rPtr + len);
+    uiState.setProperty ("userIrPath", f.getFullPathName(), nullptr);
+    installUserIrForRate (getSampleRateOrDefault());
+    return true;
+}
+
 // ---------------------------------------------------------------------------- audio
-void CompProcessor::prepareToPlay (double sampleRate, int)
+void CompProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     sr = sampleRate;
     core = std::make_unique<mod::Multi> (sampleRate);
     activeParams = currentParams();
     core->set (activeParams);
     paramsValid = true;
+    userIrConv.prepare (sampleRate, std::max (samplesPerBlock, kChunk));
+    irWetL.assign ((size_t) kChunk, 0.0f); irWetR.assign ((size_t) kChunk, 0.0f);
+    if (! rawIrL.empty()) installUserIrForRate (sampleRate);
+    else if (const auto path = uiState.getProperty ("userIrPath", "").toString(); path.isNotEmpty()) loadUserIrFile (juce::File (path));
     const int ring = (int) std::ceil (sampleRate * 0.012) + 64 + mod::Spectral::N;
     dryRingL.assign ((size_t) ring, 0.0f); dryRingR.assign ((size_t) ring, 0.0f); dryW = 0;
     for (auto* b : { &dryL, &dryR, &delL, &delR, &tGr, &tMem, &tUp, &tIn, &tDetL, &tDetR, &scratchR, &tPre }) b->assign ((size_t) kChunk, 0.0f);
@@ -317,6 +373,14 @@ void CompProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         if (listen) { tap.detL = tDetL.data(); tap.detR = tDetR.data(); }
         float cg[3], cu[3];
         core->run (L, R, L, R, m, scL, scR, tap, dryL.data(), dryR.data(), cg, cu);
+        if (p.toneIr == 5 && userIrLoaded.load() && ! p.bypass && p.analogPct > 0.0)
+        {
+            std::memcpy (irWetL.data(), L, (size_t) m * sizeof (float));
+            std::memcpy (irWetR.data(), R, (size_t) m * sizeof (float));
+            userIrConv.process (irWetL.data(), irWetR.data(), m);
+            const float amt = juce::jlimit (0.0f, 2.0f, (float) (p.analogPct * 0.01));
+            for (int i = 0; i < m; ++i) { L[i] += (irWetL[(size_t) i] - L[i]) * amt; R[i] += (irWetR[(size_t) i] - R[i]) * amt; }
+        }
         for (int b = 0; b < 3; ++b) { bg[b] = std::max (bg[b], cg[b]); bu[b] = std::max (bu[b], cu[b]); }
         if ((int) v (iLaw) == mod::LawSpectral) { const float* sb = core->specBands(); for (size_t j = 0; j < specGr.size(); ++j) if (sb[j] > specGr[j].load (std::memory_order_relaxed)) specGr[j].store (sb[j], std::memory_order_relaxed); }
         for (int i = 0; i < m; ++i)                              // dry reference, delayed like the engine
@@ -457,6 +521,7 @@ void CompProcessor::setStateInformation (const void* data, int size)
         if (ui.isValid()) { uiState.copyPropertiesFrom (ui, nullptr); st.removeChild (ui, nullptr); }
         apvts.replaceState (st);
         locks = juce::StringArray::fromTokens (uiState.getProperty ("locks", "").toString(), ",", ""); locks.removeEmptyStrings();
+        if (const auto path = uiState.getProperty ("userIrPath", "").toString(); path.isNotEmpty()) loadUserIrFile (juce::File (path));
         presetSnap.clear();
         if (! (bool) uiState.getProperty ("presetEdited", false)) presetSnap = presetValuesNow();
     }

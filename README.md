@@ -1,33 +1,33 @@
-# Compressor Anatomy Lab 2 β
+# Compressor Anatomy Lab 2
 
-**by Johan Plus Kei** · VST3 / AU / Standalone · 無料ベータ / Free beta
+**by Johan Plus Kei** · VST3 / AU / Standalone · 無料配布中 / Free
 
-🇯🇵 コンプの中身を「組み立てて・見て・聴いて」学べるプラグイン。1 台で 21 機種のコンプを、7 つのブロックの組み合わせとして再現します。
-🇬🇧 A plug-in for learning compressors by building, seeing and hearing them. It recreates 21 compressor types as combinations of seven building blocks.
+🇯🇵 コンプの中身を「組み立てて・見て・聴いて」学べるプラグイン。1 台で 26 機種のコンプを、7 つのブロックの組み合わせとして再現します。
+🇬🇧 A plug-in for learning compressors by building, seeing and hearing them. It recreates 26 compressor types as combinations of seven building blocks.
 
 **[日本語](#日本語) · [English](#english) · [ダウンロード / Download](#ダウンロード--download) · [開発者向け / For developers](#開発者向け--for-developers)**
 
 ![Compressor Anatomy Lab 2 — PANEL](docs/screenshot-panel.png)
 
-🔗 **学習ラボ・解説ページ / Learning labs & articles：** [Learning labs（GitHub Pages）](https://kazufumi01.github.io/) ・ [目次・解説記事（Seesaa・日本語）](https://jpk.seesaa.net/article/521891797.html)
+🔗 **学習ラボ・解説ページ / Learning labs & articles：** [Learning labs（GitHub Pages）](https://kazufumi01.github.io/) ・ [コンプ学習ノート（Web）](https://kazufumi01.github.io/comp-note/) / [Compressor Study Note](https://kazufumi01.github.io/comp-note/en/) ・ [目次・解説記事（Seesaa・日本語）](https://jpk.seesaa.net/article/521891797.html)
 
 ## ダウンロード / Download
 
-**[最新版をダウンロード / Download latest (0.2.1)](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)**
+**[最新版をダウンロード / Download latest (0.2.2)](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest)**
 
 | | 手動インストール（おすすめ）<br>Manual (recommended) | インストーラー<br>Installer |
 |---|---|---|
-| **Mac**<br>macOS 11+, Apple Silicon / Intel | [`CompAnatomyLab2-0.2.1-mac.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.1-mac.zip) | [`CompAnatomyLab2-0.2.1-mac.pkg`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.1-mac.pkg) |
-| **Windows** ⚠️ 未検証 / untested<br>10 / 11, 64-bit | [`CompAnatomyLab2-0.2.1-win64.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.1-win64.zip) | [`CompAnatomyLab2-0.2.1-win64.exe`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.1-win64.exe) |
+| **Mac**<br>macOS 11+, Apple Silicon / Intel | [`CompAnatomyLab2-0.2.2-mac.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.2-mac.zip) | [`CompAnatomyLab2-0.2.2-mac.pkg`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.2-mac.pkg) |
+| **Windows** ⚠️ 未検証 / untested<br>10 / 11, 64-bit | [`CompAnatomyLab2-0.2.2-win64.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.2-win64.zip) | [`CompAnatomyLab2-0.2.2-win64.exe`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.2-win64.exe) |
 
 | | 日本語 | English |
 |---|---|---|
 | インストール方法 / How to install | [INSTALL.md（日本語）](INSTALL.md#日本語) | [INSTALL.md (English)](INSTALL.md#english) |
-| 紹介記事 / Article | [1台で21機種のコンプを組み立てて学ぶ](https://jpk.seesaa.net/article/522006512.html) | — |
+| 紹介記事 / Article | [1台でコンプを組み立てて学ぶ](https://jpk.seesaa.net/article/522006512.html) | [Compressor Study Note](https://kazufumi01.github.io/comp-note/en/) |
 | 不具合・要望 / Bugs & requests | [Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues) | [Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues) |
 
 > **ご注意 / Notes**
-> - ベータ版です。Mac の Ableton Live で動作確認済み。<br>This is a beta, tested with Ableton Live on Mac.
+> - 無料配布中です。Mac の Ableton Live で動作確認済み。<br>Freeware, tested with Ableton Live on Mac.
 > - ⚠️ Windows 版は自動ビルドのみで、実機での動作確認はできていません（VST3 / Standalone）。<br>The Windows build (VST3 / Standalone) is built automatically and has not been tested on real hardware.
 > - Apple の公証・Windows のコード署名をしていないため、初回のみ警告が出ます（回避手順は INSTALL.md）。<br>The builds are not notarized or code-signed, so you will see a one-time warning (see INSTALL.md).
 
@@ -42,18 +42,18 @@
   - ゲインカーブ：Ideal / FET / Opto / Vari-Mu / Diode / Limiter / Rider / Spectral / Clipper、Upward、GR Limit
   - タイミング：1 段 / 2 段（プログラム依存）/ 光学セル / Auto / Precise（先読み）/ Dual average、リリースカーブ、Look-behind
   - 素子と出力段：Clean / FET / Tube / Opto / Diode、トランス（Nickel / Iron / Steel）、倍音、オーバーサンプリング 1x / 2x / 4x、直列 2 段
-- **21 の MODEL**（実機名は参考にした機種。定数は文献ベースの初期値で、回路の再現ではありません。製品名は各社の商標）
+- **26 の MODEL**（参考にした機種に基づく設計。製品名は各社の商標）
 
-  | MODEL | 参考にした実機 |
+  | MODEL | 参考にした機種 |
   |---|---|
-  | FET 76 | Universal Audio 1176 |
+  | FET 76 / FET 76 Blue / FET 76 AE | Universal Audio 1176 Rev E / Blue Stripe / AE |
   | Opto 2A / Opto 3A | Teletronix LA-2A / UREI LA-3A |
   | Tube Opto 1B | Tube-Tech CL 1B |
-  | Vari-Mu 670 | Fairchild 670 |
-  | Bus VCA G / Channel VCA E | SSL G シリーズ バスコンプ / SSL 4000 E チャンネル |
+  | Vari-Mu 670 / Modern Vari-Mu | Fairchild 670 / Mastering Vari-Mu |
+  | Bus VCA G / Bus VCA Auto / Channel VCA E | SSL G シリーズ バスコンプ / Auto / SSL 4000 E |
   | VCA 160 / VCA 2500 | dbx 160 / API 2500 |
   | EL 8 | Empirical Labs Distressor |
-  | Diode 254 | Neve 2254 / 33609 |
+  | Diode 254 / Zener Diode | Neve 2254 / 33609 / EMI TG12413 |
   | Dual Opto + VCA | Shadow Hills Mastering Compressor |
   | Digital DS-1 / Peak + RMS | Weiss DS1-MK3 / TDR Kotelnikov |
   | OTT 3-Band / Rider | Xfer OTT / Waves Vocal Rider |
@@ -83,18 +83,18 @@
   - Gain law: Ideal / FET / Opto / Vari-Mu / Diode / Limiter / Rider / Spectral / Clipper, Upward, GR Limit
   - Timing: single / two-stage (program-dependent) / optical cell / Auto / Precise (look-ahead) / Dual average, release curves, look-behind
   - Element and output stage: Clean / FET / Tube / Opto / Diode, transformer (Nickel / Iron / Steel), harmonics, 1x / 2x / 4x oversampling, two units in series
-- **21 MODELS** (hardware names show what each model is based on; constants are literature-based starting values, not circuit recreations; product names are trademarks of their owners)
+- **26 MODELS** (model names show what each model is based on; product names are trademarks of their owners)
 
   | MODEL | Based on |
   |---|---|
-  | FET 76 | Universal Audio 1176 |
+  | FET 76 / FET 76 Blue / FET 76 AE | Universal Audio 1176 Rev E / Blue Stripe / AE |
   | Opto 2A / Opto 3A | Teletronix LA-2A / UREI LA-3A |
   | Tube Opto 1B | Tube-Tech CL 1B |
-  | Vari-Mu 670 | Fairchild 670 |
-  | Bus VCA G / Channel VCA E | SSL G-Series bus compressor / SSL 4000 E channel |
+  | Vari-Mu 670 / Modern Vari-Mu | Fairchild 670 / Mastering Vari-Mu |
+  | Bus VCA G / Bus VCA Auto / Channel VCA E | SSL G-Series bus compressor / Auto / SSL 4000 E |
   | VCA 160 / VCA 2500 | dbx 160 / API 2500 |
   | EL 8 | Empirical Labs Distressor |
-  | Diode 254 | Neve 2254 / 33609 |
+  | Diode 254 / Zener Diode | Neve 2254 / 33609 / EMI TG12413 |
   | Dual Opto + VCA | Shadow Hills Mastering Compressor |
   | Digital DS-1 / Peak + RMS | Weiss DS1-MK3 / TDR Kotelnikov |
   | OTT 3-Band / Rider | Xfer OTT / Waves Vocal Rider |
@@ -122,7 +122,7 @@
              # uses local JUCE (~/Documents/jpkplugins/JUCE); otherwise CMake fetches JUCE 9.0.4
 ```
 
-- Windows：GitHub Actions（`.github/workflows/build-win.yml`、手動実行）で VST3 / Standalone をビルドし、Inno Setup でインストーラーを作成。<br>Windows: built by GitHub Actions (`.github/workflows/build-win.yml`, run manually); the installer is made with Inno Setup.
+- Windows：GitHub Actions（`.github/workflows/build-win.yml`、`v*` タグ push または手動実行）で VST3 / Standalone をビルドし、Inno Setup でインストーラーを作成。<br>Windows: built by GitHub Actions (`.github/workflows/build-win.yml`, triggered on `v*` tag push or manually); the installer is made with Inno Setup.
 - Mac：`packaging/mac/build_pkg.sh [version]` ／ `packaging/mac/build_zip.sh [version]`（出力は `dist/` / output in `dist/`）
 
 ### ライセンス / License

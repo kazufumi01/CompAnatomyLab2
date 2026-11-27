@@ -1,4 +1,4 @@
-Compressor Anatomy Lab 2 (Beta) — Mac 手動インストール / Manual install
+Compressor Anatomy Lab 2 — Mac 手動インストール / Manual install
 by Johan Plus Kei
 
 【日本語】
@@ -31,7 +31,7 @@ Requires macOS 11+ (Apple Silicon / Intel)
    - Compressor Anatomy Lab 2.vst3      -> Library/Audio/Plug-Ins/VST3
    - Compressor Anatomy Lab 2.app       -> Applications (optional, standalone)
 3. Open Terminal, paste this line and press Return (removes the quarantine flag
-   from this un-notarized beta):
+   from this un-notarized app):
 
 xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/"Compressor Anatomy Lab 2.component" ~/Library/Audio/Plug-Ins/VST3/"Compressor Anatomy Lab 2.vst3" /Applications/"Compressor Anatomy Lab 2.app"
 

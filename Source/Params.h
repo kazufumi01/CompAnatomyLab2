@@ -28,7 +28,12 @@ static const char* relCurve = "relcurve"; static const char* crest = "crest";   
 static const char* stereo = "stereo";     static const char* scMb = "scmb";       static const char* scLo = "sclo"; static const char* scMid = "scmid"; static const char* scHi = "schi";
 static const char* pre = "prestage";   static const char* preThr = "prethr";
 static const char* autoRel = "autorel";   static const char* dynMode = "dynmode";
+static const char* tpDet = "tpdet";       static const char* attCurve = "attcurve";
+static const char* crestRel = "crestrel"; static const char* fbPost = "fbpost";
+static const char* toneIr = "toneir";
 }
+
+inline const juce::StringArray& toneIrNames() { static const juce::StringArray n { "Off", "76 Blue (IR)", "76 All-Btn (IR)", "Warm Tube", "Console Xfmr", "User IR" }; return n; }
 
 inline const juce::StringArray& hpfNames() { static const juce::StringArray n { "Off", "30 Hz", "60 Hz", "100 Hz", "150 Hz", "250 Hz", "400 Hz" }; return n; }
 inline double hpfHz (int idx) { static const double f[] { 0, 30, 60, 100, 150, 250, 400 }; return f[juce::jlimit (0, 6, idx)]; }
@@ -84,6 +89,11 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     bl (pid::pre, "Pre-stage", false);                                             fl (pid::preThr, "Pre-stage threshold", { -40.0f, 0.0f, 0.1f }, -20.0f, "dB");
     bl (pid::autoRel, "Auto release", false);
     ch (pid::dynMode, "Dynamics mode", dynNames(), 0);
+    bl (pid::tpDet, "True peak detection", false);
+    fl (pid::attCurve, "Attack curve", { 0.0f, 100.0f, 1.0f }, 0.0f, "%");
+    fl (pid::crestRel, "Crest release", { 0.0f, 100.0f, 1.0f }, 0.0f, "%");
+    bl (pid::fbPost, "Post-output feedback", false);
+    ch (pid::toneIr, "Tone IR", toneIrNames(), 0);
     return l;
 }
 
@@ -105,5 +115,7 @@ inline std::vector<std::pair<const char*, float>> modelValues (const mod::Params
              { pid::relCurve, (float) (p.relCurve * 100.0) }, { pid::crest, (float) p.crestDb }, { pid::grLimit, (float) p.grLimit },
              { pid::stereo, (float) p.stereo }, { pid::scMb, p.scMb ? 1.0f : 0.0f }, { pid::scLo, (float) p.scSens[0] }, { pid::scMid, (float) p.scSens[1] }, { pid::scHi, (float) p.scSens[2] },
              { pid::pre, p.pre ? 1.0f : 0.0f }, { pid::preThr, (float) p.preThr },
-             { pid::autoRel, p.autoRel ? 1.0f : 0.0f }, { pid::dynMode, (float) p.dynMode } };
+             { pid::autoRel, p.autoRel ? 1.0f : 0.0f }, { pid::dynMode, (float) p.dynMode },
+             { pid::tpDet, p.tpDet ? 1.0f : 0.0f }, { pid::attCurve, (float) (p.attCurve * 100.0) }, { pid::crestRel, (float) (p.crestRel * 100.0) },
+             { pid::fbPost, p.fbPost ? 1.0f : 0.0f }, { pid::toneIr, (float) p.toneIr } };
 }

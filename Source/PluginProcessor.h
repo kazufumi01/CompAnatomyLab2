@@ -1,9 +1,11 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_audio_formats/juce_audio_formats.h>
 #include "Params.h"
 #include "MultiCore.h"
 #include "Loudness.h"
 #include "Presets.h"
+#include "XfadeConvolver.h"
 
 // Per-sample history for the displays (≈10.9 s at 48 kHz). The audio thread writes, the editor reads; a torn read only
 // affects a few pixels, so there is no lock. The same struct holds the frozen preview (filled on the message thread).
@@ -70,6 +72,9 @@ public:
     bool saveUserPreset (const juce::String& name, const juce::String& note);
     bool loadUserPreset (const juce::File&);
     void deleteUserPreset (const juce::File&);
+    bool loadUserIrFile (const juce::File&);
+    bool hasUserIr() const { return userIrLoaded.load(); }
+    juce::String userIrName() const;
 
     // parameter lock: a locked parameter keeps its value when a model or a preset is applied (saved with the session)
     bool isLocked (const juce::String& id) const { return locks.contains (id); }
@@ -110,8 +115,13 @@ private:
     std::vector<float> presetValuesNow() const;
     void markPreset (int kind, int index, const juce::String& name, const juce::String& note);
     bool presetIsExact() const;
+    void installUserIrForRate (double sampleRate);
 
     juce::StringArray locks;
+    XfadeConvolver userIrConv;
+    std::vector<float> rawIrL, rawIrR, irWetL, irWetR;
+    double rawIrSr = 48000.0;
+    std::atomic<bool> userIrLoaded { false };
     std::unique_ptr<mod::Multi> core;
     mod::Params activeParams;
     bool paramsValid = false;

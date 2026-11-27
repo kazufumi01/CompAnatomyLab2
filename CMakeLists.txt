@@ -5,7 +5,7 @@ if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
 endif()
 # Windows: static C++ runtime (no VC++ redistributable needed)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-project(CompAnatomyLab2 VERSION 0.2.1)
+project(CompAnatomyLab2 VERSION 0.2.2)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -52,6 +52,6 @@ if(MSVC)
   target_compile_options(CompAnatomyLab2 PRIVATE /utf-8 /bigobj)   # Japanese strings, large translation units
 endif()
 target_compile_definitions(CompAnatomyLab2 PUBLIC
-  JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
+  _USE_MATH_DEFINES JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
 target_link_libraries(CompAnatomyLab2 PRIVATE juce::juce_audio_utils juce::juce_dsp
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)

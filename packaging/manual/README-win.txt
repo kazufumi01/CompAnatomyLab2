@@ -1,4 +1,4 @@
-Compressor Anatomy Lab 2 (Beta) — Windows 手動インストール / Manual install
+Compressor Anatomy Lab 2 — Windows 手動インストール / Manual install
 by Johan Plus Kei
 
 ！注意：Windows 版は実機での動作確認ができていません（ビルドは自動ビルドで作成）。

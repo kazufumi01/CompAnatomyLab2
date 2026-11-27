@@ -1,12 +1,15 @@
 # Windows (VST3 + Standalone) をクラウドでビルドし、インストーラー(.exe)と手動用zipを作る
-# 「Actions」タブから手動実行。release_tag（例 v0.2.1）を入れると、そのReleaseに添付する
+# v* タグの push で自動実行（Release に添付）、または「Actions」タブから手動実行
 name: Build Windows
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       release_tag:
-        description: '既存Releaseに添付する場合のタグ（例 v0.2.1）。空ならテストビルドのみ'
+        description: '既存Releaseに添付する場合のタグ（例 v0.2.2）。空ならテストビルドのみ'
         required: false
         default: ''
 
@@ -18,10 +21,15 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-      - name: Version
+      - name: Version & Tag
         shell: bash
         run: |
-          T="${{ inputs.release_tag }}"
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            T="${{ github.ref_name }}"
+          else
+            T="${{ inputs.release_tag }}"
+          fi
+          echo "REL_TAG=$T" >> $GITHUB_ENV
           if [[ -n "$T" ]]; then V="${T#v}"; echo "VER=${V%%-*}" >> $GITHUB_ENV; else echo "VER=0.0.0-dev" >> $GITHUB_ENV; fi
       - name: Configure
         run: cmake -B build -G "Visual Studio 17 2022" -A x64 -DCA_COPY=OFF
@@ -53,8 +61,13 @@ jobs:
             dist/*.exe
             dist/*.zip
       - name: Upload to release
-        if: ${{ inputs.release_tag != '' }}
+        if: ${{ env.REL_TAG != '' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ inputs.release_tag }}" dist/*.exe dist/*.zip --clobber -R "${{ github.repository }}"
+        run: |
+          if gh release view "$REL_TAG" -R "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$REL_TAG" dist/*.exe dist/*.zip --clobber -R "${{ github.repository }}"
+          else
+            gh release create "$REL_TAG" dist/*.exe dist/*.zip --title "$REL_TAG" --generate-notes -R "${{ github.repository }}"
+          fi

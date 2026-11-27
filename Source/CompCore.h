@@ -5,6 +5,9 @@
 //  attack / release smoothing in the dB domain, feed-forward / feedback).
 //  No JUCE dependency, so the same file runs in the unit test and in the plugin.
 // =============================================================================
+#ifndef _USE_MATH_DEFINES
+#define _USE_MATH_DEFINES
+#endif
 #include <algorithm>
 #include <cmath>
 #include <vector>

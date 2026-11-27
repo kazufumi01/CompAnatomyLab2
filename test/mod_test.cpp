@@ -262,6 +262,31 @@ int main()
         mod::Params pa; pa.autoRel = true; pa.threshold = -20; pa.ratio = 4.0;
         mod::Core ca ((double) FS); ca.set (pa);
         check ("autoRel set without crashing", ca.params().autoRel == true);
+
+        // New precision analog & digital features: default = zero difference, active = finite & effective
+        {
+            mod::Params base, ext;
+            base.threshold = ext.threshold = -18; base.ratio = ext.ratio = 4.0;
+            mod::Core cb ((double) FS), ce ((double) FS); cb.set (base); ce.set (ext);
+            std::vector<float> bo1, bo2, eo1, eo2;
+            runBlocks (cb, L, R, bo1, bo2); runBlocks (ce, L, R, eo1, eo2);
+            double diff = 0; for (size_t i = 0; i < bo1.size(); ++i) diff = std::max (diff, (double) std::abs (bo1[i] - eo1[i]));
+            check ("new params at default produce bit-identical output", diff == 0.0, diff);
+
+            ext.tpDet = true; ext.attCurve = 0.7; ext.crestRel = 0.6; ext.feedback = true; ext.fbPost = true; ext.out = mod::OutXfmr; ext.toneIr = 1;
+            ce.reset(); ce.set (ext); runBlocks (ce, L, R, eo1, eo2);
+            bool okFin = true; double diffAct = 0;
+            for (size_t i = 0; i < eo1.size(); ++i) { if (! std::isfinite (eo1[i])) okFin = false; diffAct = std::max (diffAct, (double) std::abs (bo1[i] - eo1[i])); }
+            check ("tpDet + attCurve + crestRel + fbPost + toneIr finite & active", okFin && diffAct > 1e-3, diffAct);
+
+            // steadyGr solves feedback gain consistently for FET / Opto / VariMu / Diode
+            for (int lw : { (int) mod::LawFET, (int) mod::LawOpto, (int) mod::LawVariMu, (int) mod::LawDiode })
+            {
+                mod::Params pf; pf.feedback = true; pf.law = lw; pf.threshold = -18.0; pf.ratio = 4.0;
+                const double g0 = mod::steadyGr (0.0, pf);
+                check (("steadyGr feedback finite & positive for law " + std::to_string (lw)).c_str(), g0 > 2.0 && g0 < 30.0, g0);
+            }
+        }
     }
 
     std::printf ("5. every model: finite, silent in = silent out, measured behaviour\n");

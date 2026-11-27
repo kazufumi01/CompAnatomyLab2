@@ -1,9 +1,9 @@
 ﻿; Compressor Anatomy Lab 2 — Windows インストーラー（Inno Setup 6）
-; GitHub Actions から:  iscc /DMyAppVersion=0.2.1 /DArtDir=..\..\build\CompAnatomyLab2_artefacts\Release packaging\win\installer.iss
+; GitHub Actions から:  iscc /DMyAppVersion=0.2.2 /DArtDir=..\..\build\CompAnatomyLab2_artefacts\Release packaging\win\installer.iss
 ; 出力: dist\CompAnatomyLab2-<ver>-win64.exe （コード署名なし）
 
 #ifndef MyAppVersion
-  #define MyAppVersion "0.2.1"
+  #define MyAppVersion "0.2.2"
 #endif
 #ifndef ArtDir
   #define ArtDir "..\..\build\CompAnatomyLab2_artefacts\Release"

@@ -6,7 +6,7 @@
 set -e
 cd "$(dirname "$0")/../.."
 
-VERSION="${1:-0.2.1}"
+VERSION="${1:-0.2.2}"
 ART="${2:-build/CompAnatomyLab2_artefacts/Release}"
 NAME="Compressor Anatomy Lab 2"
 DIR="build/zip/CompAnatomyLab2-${VERSION}-mac"

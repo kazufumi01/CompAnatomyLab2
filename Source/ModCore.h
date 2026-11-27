@@ -62,6 +62,12 @@ struct Params
     // Auto release and dynamics mode
     bool autoRel = false;
     int dynMode = DynComp;
+    // Precision digital & analog extensions (appended; defaults match legacy behaviour)
+    bool tpDet = false;                 // 4x Hermite true-peak detector
+    double attCurve = 0.0;              // 0 = exponential attack, 1 = linear-dB / transient-preserving ramp
+    double crestRel = 0.0;              // 0..1 continuous crest-factor adaptive release
+    bool fbPost = false;                // true = feedback taps after output stage & tone IR
+    int toneIr = 0;                     // 0 Off, 1 76 Blue IR, 2 76 All-Btn IR, 3 Warm Tube, 4 Console Xfmr, 5 User IR
 
     bool operator== (const Params& o) const
     {
@@ -79,7 +85,8 @@ struct Params
             && pre == o.pre && preThr == o.preThr
             && mb == o.mb && xLo == o.xLo && xHi == o.xHi
             && bandGain[0] == o.bandGain[0] && bandGain[1] == o.bandGain[1] && bandGain[2] == o.bandGain[2]
-            && autoRel == o.autoRel && dynMode == o.dynMode;
+            && autoRel == o.autoRel && dynMode == o.dynMode
+            && tpDet == o.tpDet && attCurve == o.attCurve && crestRel == o.crestRel && fbPost == o.fbPost && toneIr == o.toneIr;
     }
     bool operator!= (const Params& o) const { return ! (*this == o); }
 };
@@ -92,15 +99,15 @@ inline double idealGr (double x, double T, double R, double W)
     if (W > 0 && 2 * std::abs (d) <= W) return (1.0 - 1.0 / R) * (d + W / 2) * (d + W / 2) / (2 * W);
     return d - d / R;
 }
-// FET: the ratio buttons also move the threshold and harden the knee
+// FET: the ratio buttons also move the threshold and harden the knee (calibrated to 1176 measurements)
 struct FetStep { double ratio, dT, knee; };
 inline FetStep fetStep (double ratio)
 {
-    if (ratio >= 30) return { 20.0, 3.0, 1.0 };      // all buttons
-    if (ratio >= 16) return { 20.0, 5.0, 2.0 };
-    if (ratio >= 10) return { 12.0, 3.5, 4.0 };
-    if (ratio >= 6)  return { 8.0, 2.0, 6.0 };
-    return { 4.0, 0.0, 8.0 };
+    if (ratio >= 30) return { 10.0, 4.0, 2.0 };      // all buttons
+    if (ratio >= 16) return { 15.0, 6.0, 2.5 };      // 20:1
+    if (ratio >= 10) return { 9.5, 4.0, 4.0 };       // 12:1
+    if (ratio >= 6)  return { 6.5, 2.0, 5.0 };       // 8:1
+    return { 4.0, 0.0, 6.0 };                        // 4:1
 }
 inline double lawGrRaw (double x, const Params& p)
 {
@@ -108,10 +115,17 @@ inline double lawGrRaw (double x, const Params& p)
     {
         // gain riding: move the level to the target (threshold), by at most ±upRange; input below upThreshold is idle (no change). Negative = gain up.
         case LawRide:   return x < p.upThreshold ? 0.0 : -std::max (-p.upRange, std::min (p.upRange, p.threshold - x));
-        case LawFET:    { const auto s = fetStep (p.ratio); return idealGr (x, p.threshold + s.dT, s.ratio, std::max (0.0, s.knee + (p.knee - 6.0))); }
-        case LawOpto:   { const double o = x - p.threshold + 4.0; const double k = std::max (0.1, 8.0 * (p.knee / 6.0)); return o <= 0 ? 0.0 : (1.0 - 1.0 / p.ratio) * o * o / (o + k); }
-        case LawVariMu: { const double o = x - p.threshold + 6.0; const double k = std::max (0.1, 12.0 * (p.knee / 6.0)); return o <= 0 ? 0.0 : (1.0 - 1.0 / p.ratio) * o * o / (o + k); }
-        case LawDiode:  return idealGr (x, p.threshold, p.ratio, std::max (0.2, 8.0 + (p.knee - 6.0)));
+        case LawFET:    { const auto s = fetStep (p.ratio);
+                          const double g = idealGr (x, p.threshold + s.dT, s.ratio, std::max (0.0, s.knee + (p.knee - 6.0)));
+                          return p.feedback ? s.ratio * g : g; }
+        case LawOpto:   { const double o = x - p.threshold + 4.0; const double k = std::max (0.1, 8.0 * (p.knee / 6.0));
+                          const double g = o <= 0 ? 0.0 : (1.0 - 1.0 / p.ratio) * o * o / (o + k);
+                          return p.feedback ? std::max (1.0, p.ratio) * g : g; }
+        case LawVariMu: { const double o = x - p.threshold + 6.0; const double k = std::max (0.1, 12.0 * (p.knee / 6.0));
+                          const double g = o <= 0 ? 0.0 : (1.0 - 1.0 / p.ratio) * o * o / (o + k);
+                          return p.feedback ? std::max (1.0, p.ratio) * g : g; }
+        case LawDiode:  { const double g = idealGr (x, p.threshold, p.ratio, std::max (0.2, 8.0 + (p.knee - 6.0)));
+                          return p.feedback ? std::max (1.0, p.ratio) * g : g; }
         case LawLimit:  return p.knee <= 0.0 ? std::max (0.0, x - p.threshold) : idealGr (x, p.threshold, 1.0e6, p.knee);
         case LawClip:   return (p.ratio >= 99.5 && p.knee <= 0.0) ? std::max (0.0, x - p.threshold) : idealGr (x, p.threshold, p.ratio >= 99.5 ? 1.0e6 : p.ratio, p.knee);
         default:        return idealGr (x, p.threshold, p.ratio, p.knee);
@@ -178,13 +192,27 @@ inline double lawUp (double x, const Params& p)
     if (x < -70.0) b *= std::max (0.0, (x + 90.0) / 20.0);
     return b;
 }
-inline double lawOut (double x, const Params& p) { return x - lawGr (x, p) + lawUp (x, p); }
+inline double steadyGr (double x, const Params& p)
+{
+    const double ff = dynLawGr (x, p);
+    if (! p.feedback || p.law == LawRide || p.law == LawLimit || p.law == LawClip || p.law == LawSpectral || p.dynMode != DynComp)
+        return ff;
+    double lo = 0.0, hi = std::max (0.0, ff);
+    for (int i = 0; i < 28; ++i)
+    {
+        const double mid = 0.5 * (lo + hi);
+        if (lawGr (x - mid, p) > mid) lo = mid; else hi = mid;
+    }
+    return 0.5 * (lo + hi);
+}
+inline double lawOut (double x, const Params& p) { return x - steadyGr (x, p) + lawUp (x, p); }
 
 // ---- small parts ----
 struct Biquad
 {
     double b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0, z[2][2] {};
     void reset() { z[0][0] = z[0][1] = z[1][0] = z[1][1] = 0; }
+    void bypass() { b0 = 1; b1 = b2 = a1 = a2 = 0; }
     double run (int c, double x) { const double y = b0 * x + z[c][0]; z[c][0] = b1 * x - a1 * y + z[c][1]; z[c][1] = b2 * x - a2 * y; return y; }
     void set (int type, double f, double q, double fs)                    // BandLP / BandHP / BandBP (RBJ)
     {
@@ -193,6 +221,29 @@ struct Biquad
         else if (type == BandHP) { b0 = (1 + c) * 0.5 / a0; b1 = -(1 + c) / a0; b2 = b0; }
         else                     { b0 = al / a0; b1 = 0; b2 = -al / a0; }
         a1 = -2.0 * c / a0; a2 = (1.0 - al) / a0;
+    }
+    void peak (double f, double gainDb, double q, double fs)
+    {
+        const double w0 = 2.0 * kPi * std::min (f, fs * 0.45) / fs, c = std::cos (w0), s = std::sin (w0);
+        const double A = std::pow (10.0, gainDb / 40.0), al = s / (2.0 * std::max (0.1, q)), a0 = 1.0 + al / A;
+        b0 = (1.0 + al * A) / a0; b1 = (-2.0 * c) / a0; b2 = (1.0 - al * A) / a0; a1 = (-2.0 * c) / a0; a2 = (1.0 - al / A) / a0;
+    }
+    void shelf (bool high, double f, double gainDb, double q, double fs)
+    {
+        const double w0 = 2.0 * kPi * std::min (f, fs * 0.45) / fs, c = std::cos (w0), s = std::sin (w0);
+        const double A = std::pow (10.0, gainDb / 40.0), al = s / (2.0 * std::max (0.1, q)), sq = 2.0 * std::sqrt (A) * al;
+        if (! high)
+        {
+            const double a0 = (A + 1.0) + (A - 1.0) * c + sq;
+            b0 = A * ((A + 1.0) - (A - 1.0) * c + sq) / a0; b1 = 2.0 * A * ((A - 1.0) - (A + 1.0) * c) / a0;
+            b2 = A * ((A + 1.0) - (A - 1.0) * c - sq) / a0; a1 = -2.0 * ((A - 1.0) + (A + 1.0) * c) / a0; a2 = ((A + 1.0) + (A - 1.0) * c - sq) / a0;
+        }
+        else
+        {
+            const double a0 = (A + 1.0) - (A - 1.0) * c + sq;
+            b0 = A * ((A + 1.0) + (A - 1.0) * c + sq) / a0; b1 = -2.0 * A * ((A - 1.0) + (A + 1.0) * c) / a0;
+            b2 = A * ((A + 1.0) + (A - 1.0) * c - sq) / a0; a1 = 2.0 * ((A - 1.0) - (A + 1.0) * c) / a0; a2 = ((A + 1.0) - (A - 1.0) * c - sq) / a0;
+        }
     }
     void tilt (double lowDb, double highDb, double fs)                    // first-order shelf centred on 1 kHz
     {
@@ -281,14 +332,40 @@ public:
         auto tc = [this] (double ms) { return std::exp (-1.0 / (std::max (ms, 0.001) * 0.001 * fs)); };
         aA = tc (p.attack); aR = tc (p.release); aM = tc (p.rmsMs); aAvg = tc (p.avgMs);
         const bool autoT = p.timing == TimAuto || p.autoRel;
-        aSlowUp = tc (autoT ? 400.0 : 200.0);
-        aSlowDn = tc (autoT ? (p.autoRel ? std::max (p.release * 2.5, 600.0) : 1500.0) : p.release * p.slowMult);
-        aFastDn = autoT ? tc (p.autoRel ? std::min (p.release * 0.5, 80.0) : 100.0) : aR;
+        aSlowUp = tc (autoT ? 350.0 : 350.0);
+        aSlowDn = tc (autoT ? (p.autoRel ? std::max (p.release * 2.5, 600.0) : 1200.0) : p.release * p.slowMult);
+        aFastDn = autoT ? tc (p.autoRel ? std::min (p.release * 0.5, 80.0) : 75.0) : aR;
         slowAmt = autoT ? 0.65 : p.slowAmt;
         oSA = tc (30); oMU = tc (1500); oMD = tc (4000);
-        dcR = std::exp (-2.0 * kPi * 8.0 / fs); xfK = 1.0 - std::exp (-2.0 * kPi * 70.0 / fs);
+        aDiodeA = tc (std::max (p.attack * 2.5, 1.4)); aDiodeR = tc (26.0);
+        aCrPk = tc (8.0); aCrRms = tc (60.0);
+        dcR = std::exp (-2.0 * kPi * 8.0 / fs); xfK = 1.0 - std::exp (-2.0 * kPi * 120.0 / fs);
+        xfTone1.peak (115.0, 0.2, 0.9, fs);
+        xfTone2.peak (14000.0, 0.3, 1.3, fs);
+        for (auto& b : irBq) b.bypass();
+        if (p.toneIr == 1)      // 1176 Blue Stripe IR profile (8 8 4 a4 r4)
+        {
+            irBq[0].shelf (false, 75.5, -3.7, 0.95, fs); irBq[1].peak (53.3, 1.8, 0.96, fs);
+            irBq[2].peak (14300.0, 2.0, 1.35, fs);       irBq[3].shelf (true, 18400.0, -3.2, 1.1, fs);
+        }
+        else if (p.toneIr == 2) // 1176 All-Buttons IR profile
+        {
+            irBq[0].shelf (false, 30.0, -9.5, 0.68, fs); irBq[1].peak (116.7, 4.3, 0.95, fs);
+            irBq[2].peak (423.6, 1.1, 1.03, fs);         irBq[3].shelf (true, 2200.0, 2.2, 0.5, fs);
+        }
+        else if (p.toneIr == 3) // Warm Tube (Opto / Vari-Mu character)
+        {
+            irBq[0].shelf (false, 32.0, -1.5, 0.7, fs);  irBq[1].peak (62.0, 0.9, 0.85, fs);
+            irBq[2].peak (240.0, 0.4, 0.8, fs);          irBq[3].shelf (true, 11500.0, -1.3, 0.7, fs);
+        }
+        else if (p.toneIr == 4) // Console Transformer (British / American iron)
+        {
+            irBq[0].shelf (false, 35.0, -1.8, 0.75, fs); irBq[1].peak (68.0, 1.0, 1.0, fs);
+            irBq[2].peak (3200.0, 0.35, 0.9, fs);        irBq[3].shelf (true, 14500.0, 0.9, 0.8, fs);
+        }
         laBase = (int) std::lround (std::max (0.0, p.lookaheadMs) * 0.001 * fsBase); la = std::min (dsize - 2, laBase * os); laBase = la / os;
         lb = std::min (dsize - 2, (int) std::lround (std::max (0.0, -p.lookaheadMs) * 0.001 * fs));
+        attLinStep = 6.3 / (std::max (p.attack, 0.02) * 0.001 * fs);
         linStep = 6.3 / (std::max (p.release, 0.001) * 0.001 * fs);          // linear release: 6.3 dB per release time (= the exponential's first 63 % of 10 dB)
         aCrest = tc (p.release * p.slowMult);
         kHf = 1.0 - std::exp (-2.0 * kPi * std::min (9000.0, fs * 0.4) / fs); kLo = 1.0 - std::exp (-2.0 * kPi * 140.0 / fs);
@@ -315,10 +392,13 @@ public:
         {
             std::fill (dly[c].begin(), dly[c].end(), 0.0); std::fill (gdl[c].begin(), gdl[c].end(), 0.0); smax[c].reset(); box[c].reset();
             up1[c].reset(); dn1[c].reset(); up2[c].reset(); dn2[c].reset();
-            ms[c] = y1[c] = y2[c] = gS[c] = mem[c] = avg[c] = gs[c] = fb[c] = yUp[c] = yRms[c] = 0; xfIn[c] = xfOut[c] = xfLp[c] = 0;
+            ms[c] = y1[c] = y2[c] = gS[c] = mem[c] = avg[c] = gs[c] = fb[c] = yUp[c] = yRms[c] = diodeEnv[c] = diodeEnv2[c] = crPk[c] = crRm[c] = 0;
+            xfIn[c] = xfOut[c] = xfLp[c] = adaaEl[c] = adaaElNeg[c] = adaaOut[c] = 0;
+            for (int k = 0; k < 4; ++k) tpH[c][k] = 0;
             for (auto& d : dc[c]) d[0] = d[1] = 0;
         }
-        scLp.reset(); scHp.reset(); for (auto& b : msB) b[0] = b[1] = 0; yRide[0] = yRide[1] = 0; yEnv[0] = yEnv[1] = -140.0;
+        scLp.reset(); scHp.reset(); xfTone1.reset(); xfTone2.reset(); for (auto& b : irBq) b.reset();
+        for (auto& b : msB) b[0] = b[1] = 0; yRide[0] = yRide[1] = 0; yEnv[0] = yEnv[1] = -140.0;
         hpf.reset(); tilt.reset(); bandSc.reset(); bandAu.reset(); w = 0;
     }
 
@@ -372,44 +452,91 @@ private:
         const double amount = std::max (0.0, std::min (2.0, p.analogPct * 0.01));
         return dry + (modeled - dry) * amount;
     }
+    // 1st-order ADAA for tanh(x)
+    static double adaaTanh (double x, double& prev)
+    {
+        auto F = [] (double u) { const double a = std::abs (u); return a + std::log1p (std::exp (-2.0 * a)) - 0.6931471805599453; };
+        const double d = x - prev;
+        const double y = std::abs (d) < 1e-5 ? std::tanh (0.5 * (x + prev)) : (F (x) - F (prev)) / d;
+        prev = x;
+        return y;
+    }
+    // 4x Catmull-Rom inter-sample true-peak amplitude estimator
+    double truePeakAbs (int c, double s)
+    {
+        auto* h = tpH[c];
+        h[0] = h[1]; h[1] = h[2]; h[2] = h[3]; h[3] = s;
+        double pk = std::abs (s);
+        const double a0 = -0.5 * h[0] + 1.5 * h[1] - 1.5 * h[2] + 0.5 * h[3];
+        const double a1 = h[0] - 2.5 * h[1] + 2.0 * h[2] - 0.5 * h[3];
+        const double a2 = -0.5 * h[0] + 0.5 * h[2];
+        const double a3 = h[1];
+        for (double t : { 0.25, 0.5, 0.75 })
+            pk = std::max (pk, std::abs (((a0 * t + a1) * t + a2) * t + a3));
+        return pk;
+    }
     // transformer: only the lows saturate (flux grows as frequency falls) + magnetic hysteresis & saturation detail
-    double xfmr (double x, double& st, double d)
+    double xfmr (double x, double& st, double d, double asym = 0.020)
     {
         st += xfK * (x - st);
-        const double sat = std::tanh (d * st + 0.04 * st * std::abs (st)) / d;
+        const double sat = std::tanh (d * st + asym * st * st) / d;
         return (x - st) + sat;
     }
 
-    // attack / release step. The release blends from exponential to linear-in-dB with relCurve (dB-domain detectors only).
+    // attack / release step. Blends attack (attCurve) and release (relCurve) between exponential and linear-in-dB.
     double follow (double y, double u, double aAtt, double aRel) const
     {
-        if (u > y) return aAtt * y + (1 - aAtt) * u;
-        const double e = aRel * y + (1 - aRel) * u;
-        if (p.relCurve <= 0.0 || p.det == DetDiode) return e;
+        if (u > y)
+        {
+            const double e = aAtt * y + (1.0 - aAtt) * u;
+            if (p.attCurve <= 0.0) return e;
+            return e + p.attCurve * (std::min (u, y + attLinStep) - e);
+        }
+        const double e = aRel * y + (1.0 - aRel) * u;
+        if (p.relCurve <= 0.0) return e;
         return e + p.relCurve * (std::max (u, y - linStep) - e);
     }
-    // ⑤ timing: follows the target u (GR in dB, or detector voltage for the diode detector)
+    double effectiveRelCoef (int c, double baseCoef, double baseMs) const
+    {
+        if (p.crestRel <= 0.0) return baseCoef;
+        const double crestDb = 20.0 * std::log10 (std::max (crPk[c], 1e-7) / std::sqrt (std::max (crRm[c], 1e-14)));
+        // High crest (> 8 dB transient) -> faster release (down to 0.35x); low crest (< 4 dB sustain) -> slower (up to 2.4x)
+        const double norm = std::max (-1.0, std::min (1.0, (6.0 - crestDb) / 6.0));
+        const double mult = norm >= 0.0 ? (1.0 + 1.4 * norm * p.crestRel) : (1.0 + 0.65 * norm * p.crestRel);
+        return std::exp (-1.0 / (std::max (baseMs * mult, 0.5) * 0.001 * fs));
+    }
+    // ⑤ timing: follows the target u (GR in dB)
     double ballistics (int c, double u, double grNow)
     {
+        const double rCoef = effectiveRelCoef (c, aR, p.release);
+        const double rFast = effectiveRelCoef (c, aFastDn, p.timing == TimAuto ? 75.0 : p.release);
         if (p.autoRel && p.timing != TimAuto && p.timing != TimProg2)
         {
-            y1[c] = follow (y1[c], u, aA, aFastDn);
+            y1[c] = follow (y1[c], u, aA, rFast);
             const double s = u > y2[c] ? aSlowUp : aSlowDn; y2[c] = s * y2[c] + (1 - s) * u;
             slowNow[c] = slowAmt * y2[c];
             return std::max (y1[c], slowNow[c]);
         }
         switch (p.timing)
         {
-            case TimProg2: case TimAuto:
+            case TimProg2:
             {
-                y1[c] = follow (y1[c], u, aA, aFastDn);
+                y1[c] = follow (y1[c], u, aA, rFast);
+                const double s = u > y2[c] ? aSlowUp : aSlowDn; y2[c] = s * y2[c] + (1 - s) * u;
+                const double slowPeak = std::max (y1[c], y2[c]);
+                slowNow[c] = slowAmt * slowPeak;
+                return (1.0 - slowAmt) * y1[c] + slowAmt * slowPeak;
+            }
+            case TimAuto:
+            {
+                y1[c] = follow (y1[c], u, aA, rFast);
                 const double s = u > y2[c] ? aSlowUp : aSlowDn; y2[c] = s * y2[c] + (1 - s) * u;
                 slowNow[c] = slowAmt * y2[c];
                 return std::max (y1[c], slowNow[c]);
             }
             case TimOptoMem:                                        // EL panel + CdS cell: fast half + slow half with memory
             {
-                const double aF = u > y1[c] ? aA : aR; y1[c] = aF * y1[c] + (1 - aF) * u;
+                const double aF = u > y1[c] ? aA : rCoef; y1[c] = aF * y1[c] + (1 - aF) * u;
                 const double aS = u > gS[c] ? oSA : std::exp (-1.0 / ((0.5 + 4.5 * mem[c]) * fs)); gS[c] = aS * gS[c] + (1 - aS) * u;
                 const double tgt = std::min (1.0, (p.det == DetDiode ? grNow : u) / 12.0), aMm = tgt > mem[c] ? oMU : oMD;
                 mem[c] = aMm * mem[c] + (1 - aMm) * tgt; slowNow[c] = 0.5 * gS[c];
@@ -418,59 +545,73 @@ private:
             case TimPrecise:                                        // hold the peak, ramp linearly over the look-ahead, then release
             {
                 const double b = box[c].run (smax[c].run (u));
-                y1[c] = follow (y1[c], b, aA, aR); slowNow[c] = 0;
+                y1[c] = follow (y1[c], b, aA, rCoef); slowNow[c] = 0;
                 return y1[c];
             }
             case TimDualAvg:                                        // sustained reduction → slow release, transients → fast release
             {
                 const double on = grNow > 0.1 ? 1.0 : 0.0; avg[c] = aAvg * avg[c] + (1 - aAvg) * on;
                 const double rel = p.release * (1.0 + (p.slowMult - 1.0) * avg[c]);
-                const double a = u > y1[c] ? aA : std::exp (-1.0 / (std::max (rel, 0.001) * 0.001 * fs));
+                const double a = u > y1[c] ? aA : effectiveRelCoef (c, std::exp (-1.0 / (std::max (rel, 0.001) * 0.001 * fs)), rel);
                 y1[c] = a * y1[c] + (1 - a) * u; slowNow[c] = avg[c];
                 return y1[c];
             }
-            default: { y1[c] = follow (y1[c], u, aA, aR); slowNow[c] = 0; return y1[c]; }
+            default: { y1[c] = follow (y1[c], u, aA, rCoef); slowNow[c] = 0; return y1[c]; }
         }
     }
 
-    // ⑥ gain element: where the level is actually turned down
+    // ⑥ gain element: where the level is actually turned down (1st-order ADAA calibrated to hardware measurements)
     double element (int c, double wv, double g)
     {
         if (p.analogPct <= 0.0) return wv;
         const double gn = std::min (g, 20.0) / 20.0;
         switch (p.element)
         {
-            case ElFET:   { const double dv = (0.4 + 1.2 * gn) * drv, a2 = 0.03 + 0.22 * gn;
-                            const double wet = dcBlock (c, 0, std::tanh (dv * (wv + a2 * wv * wv - 0.02 * dv * wv * wv * wv)) / dv);
+            case ElFET:   { const double allBtn = (p.law == LawFET && p.ratio >= 30.0) ? 5.5 : 1.0;
+                            const double dv = (0.21 + 0.45 * gn) * drv, a2 = (0.0052 + 0.012 * gn) * allBtn;
+                            const double shaped = adaaTanh (dv * (wv + a2 * wv * wv), adaaEl[c]) / dv;
+                            const double wet = dcBlock (c, 0, shaped);
                             return analogMix (wv, wet); }
-            case ElTube:  { const double dv = (0.7 + 0.3 * gn) * drv, a2 = 0.25, mis = 0.04;      // push-pull: even harmonics cancel except for the mismatch
-                            const double pos = std::tanh (dv * (wv + a2 * wv * wv)), neg = std::tanh (dv * (-wv + a2 * wv * wv));
-                            const double wet = dcBlock (c, 0, 0.5 * ((1 + mis) * pos - (1 - mis) * neg) / dv);
+            case ElTube:  { const double dv = (0.28 + 0.35 * gn) * drv, a2 = 0.16, mis = 0.025;    // push-pull Vari-Mu (Fairchild 670 H2/H3 balance)
+                            const double pos = adaaTanh (dv * (wv + a2 * wv * wv), adaaEl[c]);
+                            const double neg = adaaTanh (dv * (-wv + a2 * wv * wv), adaaElNeg[c]);
+                            const double wet = dcBlock (c, 0, 0.5 * ((1.0 + mis) * pos - (1.0 - mis) * neg) / dv);
                             return analogMix (wv, wet); }
-            case ElOpto:  { const double dv = (0.15 + 0.25 * gn) * drv;
-                            const double wet = dcBlock (c, 0, wv - 0.02 * dv * wv * wv * wv);
-                            return analogMix (wv, wet); }               // subtle smooth CdS cell soft saturation
-            case ElDiode: { const double k = (0.08 + 0.45 * gn) * drv;
-                            const double wet = std::tanh ((1.0 + 0.2 * k) * wv) / (1.0 + k * (0.85 * std::abs (wv) + 0.15 * wv * wv));
+            case ElOpto:  { const double dv = (0.12 + 0.20 * gn) * drv;
+                            const double wet = dcBlock (c, 0, wv - 0.015 * dv * wv * wv * wv);
+                            return analogMix (wv, wet); }
+            case ElDiode: { const double dv = (0.18 + 0.38 * gn) * drv, a2 = 0.006 + 0.012 * gn;   // diode bridge (DMG Zener / 2254 calibration)
+                            const double shaped = adaaTanh (dv * (wv + a2 * wv * wv), adaaEl[c]) / dv;
+                            const double wet = dcBlock (c, 0, shaped);
                             return analogMix (wv, wet); }
             default: return wv;
         }
     }
     double outStage (int c, double v)
     {
-        if (p.analogPct <= 0.0) return v;
-        switch (p.out)
+        double u = v;
+        if (p.analogPct > 0.0)
         {
-            case OutXfmr: { const double wet = xfmr (v, xfOut[c], 1.5); return analogMix (v, wet); }
-            case OutTube: { const double wet = dcBlock (c, 1, std::tanh (0.6 * (v + 0.08 * v * v)) / 0.6); return analogMix (v, wet); }
-            case OutH2:   { const double wet = dcBlock (c, 1, std::tanh (0.8 * (v + 0.30 * v * v)) / 0.8); return analogMix (v, wet); }
-            case OutH3:   { const double wet = std::tanh (1.6 * v) / 1.6; return analogMix (v, wet); }
-            case OutNickel: { const double u = xfmr (v, xfOut[c], 0.6); xfLp[c] += kHf * (u - xfLp[c]); const double wet = u + 0.07 * (u - xfLp[c]); return analogMix (v, wet); }                 // cleanest, a little air
-            case OutIron:   { double u = xfmr (v, xfOut[c], 1.5); u = dcBlock (c, 1, std::tanh (0.7 * (u + 0.12 * u * u)) / 0.7);                         // even harmonics, fuller upper lows
-                              xfLp[c] += kLo * (u - xfLp[c]); const double wet = u + 0.10 * xfLp[c]; return analogMix (v, wet); }
-            case OutSteel:  { double u = xfmr (v, xfOut[c], 3.0); u = std::tanh (1.2 * u) / 1.2; xfLp[c] += kLo * 0.6 * (u - xfLp[c]); const double wet = u + 0.08 * xfLp[c]; return analogMix (v, wet); }   // most distortion, tight lows
-            default: return v;
+            switch (p.out)
+            {
+                case OutXfmr:   { double wet = dcBlock (c, 1, xfmr (v, xfOut[c], 0.55, 0.014)); wet = xfTone2.run (c, xfTone1.run (c, wet)); u = analogMix (v, wet); break; }
+                case OutTube:   { const double wet = dcBlock (c, 1, adaaTanh (0.42 * (v + 0.042 * v * v), adaaOut[c]) / 0.42); u = analogMix (v, wet); break; }
+                case OutH2:     { const double wet = dcBlock (c, 1, adaaTanh (0.52 * (v + 0.058 * v * v), adaaOut[c]) / 0.52); u = analogMix (v, wet); break; }
+                case OutH3:     { const double wet = adaaTanh (0.65 * v, adaaOut[c]) / 0.65; u = analogMix (v, wet); break; }
+                case OutNickel: { const double x = xfmr (v, xfOut[c], 0.6); xfLp[c] += kHf * (x - xfLp[c]); u = analogMix (v, x + 0.07 * (x - xfLp[c])); break; }
+                case OutIron:   { double x = xfmr (v, xfOut[c], 1.2); x = dcBlock (c, 1, adaaTanh (0.55 * (x + 0.08 * x * x), adaaOut[c]) / 0.55);
+                                  xfLp[c] += kLo * (x - xfLp[c]); u = analogMix (v, x + 0.10 * xfLp[c]); break; }
+                case OutSteel:  { double x = xfmr (v, xfOut[c], 2.2); x = adaaTanh (0.95 * x, adaaOut[c]) / 0.95; xfLp[c] += kLo * 0.6 * (x - xfLp[c]); u = analogMix (v, x + 0.08 * xfLp[c]); break; }
+                default: break;
+            }
+            if (p.toneIr >= 1 && p.toneIr <= 4)
+            {
+                double t = u;
+                for (auto& b : irBq) t = b.run (c, t);
+                u = analogMix (u, t);
+            }
         }
+        return u;
     }
 
     void tick (const double* in, const double* e, bool ext, double* out)
@@ -478,12 +619,18 @@ private:
         double x[2], lev[2], levR[2] { 0, 0 };
         for (int c = 0; c < 2; ++c)
         {
-            x[c] = in[c] * gIn; if (p.inXfmr) x[c] = xfmr (x[c], xfIn[c], 1.5);
+            x[c] = in[c] * gIn; if (p.inXfmr) x[c] = xfmr (x[c], xfIn[c], 0.45, 0.006);
             double s = ext ? e[c] : (p.feedback ? fb[c] : x[c]);
             if (hpfOn) s = hpf.run (c, s);
             if (p.scTilt > 0) s = tilt.run (c, s);
             if (p.band != BandOff) s = bandSc.run (c, s);
             tDet[c] = s;
+            const double instAbs = p.tpDet ? truePeakAbs (c, s) : std::abs (s);
+            if (p.crestRel > 0.0)
+            {
+                crPk[c] = instAbs > crPk[c] ? instAbs : aCrPk * crPk[c] + (1.0 - aCrPk) * instAbs;
+                crRm[c] = aCrRms * crRm[c] + (1.0 - aCrRms) * s * s;
+            }
             if (p.scMb)                                             // three detector bands, each weighted; the loudest decides
             {
                 const double lo = scLp.run (c, s), hi = scHp.run (c, s), bnd[3] { lo, s - lo - hi, hi };
@@ -498,7 +645,7 @@ private:
             else
             {
                 if (p.det == DetRMS || p.det == DetCrest) { ms[c] = aM * ms[c] + (1 - aM) * s * s; levR[c] = std::sqrt (ms[c]); }
-                lev[c] = p.det == DetRMS ? levR[c] : std::abs (s);
+                lev[c] = p.det == DetRMS ? levR[c] : instAbs;
             }
         }
         if (p.stereo == 2) lev[1] = levR[1] = 0; else if (p.stereo == 3) lev[0] = levR[0] = 0;       // mid only / side only: the other channel is neither measured nor changed
@@ -519,10 +666,11 @@ private:
                 if (ldb >= p.upThreshold) { const double t = -dynLawGr (ldb, p), a = t < yRide[c] ? aA : aR; yRide[c] = a * yRide[c] + (1 - a) * t; }
                 gs[c] = -yRide[c]; slowNow[c] = 0;
             }
-            else if (p.det == DetDiode)                             // rectifier + RC: timing acts on the voltage, before the gain law
+            else if (p.det == DetDiode)                             // rectifier + RC: smooth rectified voltage first, then dB ballistics
             {
-                const double v = ballistics (c, l, gs[c]);
-                gs[c] = dynLawGr (v > 1e-7 ? 20.0 * std::log10 (v) : -140.0, p);
+                const double aD = l > diodeEnv[c] ? aDiodeA : aDiodeR;
+                diodeEnv[c] = aD * diodeEnv[c] + (1.0 - aD) * l;
+                gs[c] = ballistics (c, dynLawGr (diodeEnv[c] > 1e-7 ? 20.0 * std::log10 (diodeEnv[c]) : -140.0, p), gs[c]);
             }
             else if (p.det == DetCrest)                             // peak path (threshold raised by the crest setting) and RMS path, whichever asks for more
             {
@@ -555,8 +703,8 @@ private:
             double wet;
             if (p.band != BandOff && p.bandOnly) { const double b = bandAu.run (c, d); wet = (d - b) + element (c, b * g, std::max (0.0, gs[c])); }
             else wet = element (c, d * g, std::max (0.0, gs[c]));
-            fb[c] = wet;
             double o = outStage (c, wet);
+            fb[c] = p.fbPost ? o : wet;
             if (p.law == LawLimit) o = std::max (-thrLin, std::min (thrLin, o));       // safety clip at the ceiling
             out[c] = p.bypass ? d : o * gMk * p.mix + d * (1.0 - p.mix);
             tGr = std::max (tGr, gs[c]); tSlow = std::max (tSlow, slowNow[c]); tUp = std::max (tUp, std::max (yUp[c], -gs[c]));
@@ -569,9 +717,9 @@ private:
     std::vector<double> dly[2], gdl[2]; int dsize = 0, w = 0, la = 0, laBase = 0, lb = 0;
     SlideMax smax[2]; Boxcar box[2]; Fir up1[2], dn1[2], up2[2], dn2[2];
     Biquad hpf, tilt, bandSc, bandAu; bool hpfOn = false;
-    Biquad scLp, scHp; double scW[3] { 1, 1, 1 }, msB[3][2] {}, yRide[2] {}, yEnv[2] { -140.0, -140.0 };
-    double ms[2] {}, y1[2] {}, y2[2] {}, gS[2] {}, mem[2] {}, avg[2] {}, gs[2] {}, fb[2] {}, slowNow[2] {}, xfIn[2] {}, xfOut[2] {}, dc[2][2][2] {};
-    double aA = 0, aR = 0, aM = 0, aAvg = 0, aSlowUp = 0, aSlowDn = 0, aFastDn = 0, slowAmt = 0.5, oSA = 0, oMU = 0, oMD = 0, dcR = 0, xfK = 0, gIn = 1, gMk = 1, drv = 1;
-    double tGr = 0, tSlow = 0, tIn = 0, tUp = 0, tDet[2] {}, yUp[2] {}, thrLin = 1, yRms[2] {}, xfLp[2] {}, linStep = 0, aCrest = 0, kHf = 0, kLo = 0;
+    Biquad scLp, scHp, xfTone1, xfTone2, irBq[4]; double scW[3] { 1, 1, 1 }, msB[3][2] {}, yRide[2] {}, yEnv[2] { -140.0, -140.0 };
+    double ms[2] {}, y1[2] {}, y2[2] {}, gS[2] {}, mem[2] {}, avg[2] {}, gs[2] {}, fb[2] {}, slowNow[2] {}, xfIn[2] {}, xfOut[2] {}, adaaEl[2] {}, adaaElNeg[2] {}, adaaOut[2] {}, diodeEnv[2] {}, diodeEnv2[2] {}, crPk[2] {}, crRm[2] {}, tpH[2][4] {}, dc[2][2][2] {};
+    double aA = 0, aR = 0, aM = 0, aAvg = 0, aSlowUp = 0, aSlowDn = 0, aFastDn = 0, slowAmt = 0.5, oSA = 0, oMU = 0, oMD = 0, aDiodeA = 0, aDiodeR = 0, aDiode2 = 0, aCrPk = 0, aCrRms = 0, dcR = 0, xfK = 0, gIn = 1, gMk = 1, drv = 1;
+    double tGr = 0, tSlow = 0, tIn = 0, tUp = 0, tDet[2] {}, yUp[2] {}, thrLin = 1, yRms[2] {}, xfLp[2] {}, attLinStep = 0, linStep = 0, aCrest = 0, kHf = 0, kLo = 0;
 };
 } // namespace mod

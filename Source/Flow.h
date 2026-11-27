@@ -98,12 +98,12 @@ public:
           attV (h, "ATTACK"), relV (h, "RELEASE"), lookV (h, "LOOK"), holdV (h, "HOLD"), slowV (h, "SLOW x"), amtV (h, "AMOUNT"),
           driveV (h, "DRIVE"), analogV (h, "ANALOG"), makeV (h, "MAKEUP"), mixV (h, "DRY / WET"),
           upThrV (h, "UP THR"), upRatioV (h, "UP RATIO"), xLoV (h, "XOVER LO"), xHiV (h, "XOVER HI"), gLoV (h, "LO"), gMidV (h, "MID"), gHiV (h, "HI"),
-          relCurveV (h, "REL CURVE"), crestV (h, "CREST"), grLimV (h, "GR LIMIT"), upRangeV (h, "UP RANGE"),
+          attCurveV (h, "ATT CRV"), relCurveV (h, "REL CRV"), crestRelV (h, "CREST R"), crestV (h, "CREST"), grLimV (h, "GR LIMIT"), upRangeV (h, "UP RANGE"),
           stereoV (h, "STEREO"), sLoV (h, "LO"), sMidV (h, "MID"), sHiV (h, "HI"), preThrV (h, "PRE THR"),
           xfSeg (h, { "Off", "On" }), srcSeg (h, { "Internal", "External" }), onlySeg (h, { "Full", "Band only" }), topoSeg (h, { "Feed-fwd", "Feedback" }), osSeg (h, { "1x", "2x", "4x" }), upSeg (h, { "Off", "On" }), mbSeg (h, { "Single", "3-band" }), scMbSeg (h, { "1 band", "3 bands" }), preSeg (h, { "Off", "Opto 2:1" }),
           dynModeSeg (h, { "Comp", "Exp", "Gate" }),
           detBox (h, pid::detector, detNames()), lawBox (h, pid::law, lawNames()), timBox (h, pid::timing, timingNames()),
-          elBox (h, pid::element, elementNames()), outBox (h, pid::outStage, outNames())
+          elBox (h, pid::element, elementNames()), outBox (h, pid::outStage, outNames()), toneIrBox (h, pid::toneIr, toneIrNames())
     {
         auto dv = [this] (DragValue& d, const char* id, std::function<juce::String (float)> f)
         { d.compact = true; d.setParam (id); d.format = std::move (f); addAndMakeVisible (d); };
@@ -135,7 +135,9 @@ public:
         sLoV.setParam (pid::scLo); sMidV.setParam (pid::scMid); sHiV.setParam (pid::scHi);
         dv (upThrV, pid::upThr, [] (float v) { return minus (v) + " dB"; });
         dv (upRatioV, pid::upRatio, [] (float v) { return "1 : " + juce::String (v, 1); });
-        dv (relCurveV, pid::relCurve, [] (float v) { return v < 0.5f ? juce::String ("Exp (log)") : v > 99.5f ? juce::String ("Linear") : juce::String (juce::roundToInt (v)) + " % lin"; });
+        dv (attCurveV, pid::attCurve, [] (float v) { return v < 0.5f ? juce::String ("Exp") : v > 99.5f ? juce::String ("Lin") : juce::String (juce::roundToInt (v)) + "%"; });
+        dv (relCurveV, pid::relCurve, [] (float v) { return v < 0.5f ? juce::String ("Exp") : v > 99.5f ? juce::String ("Lin") : juce::String (juce::roundToInt (v)) + "%"; });
+        dv (crestRelV, pid::crestRel, [] (float v) { return v < 0.5f ? juce::String ("Off") : juce::String (juce::roundToInt (v)) + "%"; });
         dv (crestV, pid::crest, [] (float v) { return juce::String (v, 1) + " dB"; });
         dv (grLimV, pid::grLimit, [] (float v) { return v >= 39.95f ? juce::String ("Off") : juce::String (v, 1) + " dB"; });
         dv (upRangeV, pid::upRange, [] (float v) { return juce::String (v, 1) + " dB"; });
@@ -146,16 +148,36 @@ public:
         for (auto* gv : { &gLoV, &gMidV, &gHiV }) addAndMakeVisible (*gv);
         xfSeg.setParam (pid::inXfmr); srcSeg.setParam (pid::scSource); onlySeg.setParam (pid::bandOnly); topoSeg.setParam (pid::topology); osSeg.setParam (pid::os); upSeg.setParam (pid::upOn); mbSeg.setParam (pid::mb); scMbSeg.setParam (pid::scMb); preSeg.setParam (pid::pre); dynModeSeg.setParam (pid::dynMode);
         for (auto* c : { (juce::Component*) &xfSeg, (juce::Component*) &srcSeg, (juce::Component*) &onlySeg, (juce::Component*) &topoSeg, (juce::Component*) &osSeg, (juce::Component*) &upSeg, (juce::Component*) &mbSeg, (juce::Component*) &scMbSeg, (juce::Component*) &preSeg, (juce::Component*) &dynModeSeg,
-                         (juce::Component*) &detBox, (juce::Component*) &lawBox, (juce::Component*) &timBox, (juce::Component*) &elBox, (juce::Component*) &outBox })
+                         (juce::Component*) &detBox, (juce::Component*) &lawBox, (juce::Component*) &timBox, (juce::Component*) &elBox, (juce::Component*) &outBox, (juce::Component*) &toneIrBox })
             addAndMakeVisible (*c);
 
-        autoRelBtn.onClick = [this] {
-            const bool on = ph.value (pid::autoRel) > 0.5f;
-            ph.setGesture (pid::autoRel, on ? 0.0f : 1.0f);
-            refresh();
+        for (auto* b : { &autoRelBtn, &tpBtn, &fbPostBtn, &irLoadBtn }) { b->setWantsKeyboardFocus (false); addAndMakeVisible (*b); }
+        autoRelBtn.onClick = [this] { ph.toggleGesture (pid::autoRel); refresh(); };
+        tpBtn.onClick      = [this] { ph.toggleGesture (pid::tpDet); refresh(); };
+        fbPostBtn.onClick  = [this] { ph.toggleGesture (pid::fbPost); refresh(); };
+        irLoadBtn.onClick  = [this]
+        {
+            juce::Component::SafePointer<FlowPanel> safe (this);
+            irChooser = std::make_unique<juce::FileChooser> (ph.tr ("IR WAV ファイルを選択", "Select IR WAV file"), juce::File(), "*.wav;*.aif;*.aiff;*.flac");
+            irChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [safe] (const juce::FileChooser& fc)
+            {
+                if (safe == nullptr) return;
+                const auto f = fc.getResult();
+                if (f.existsAsFile() && safe->ph.proc.loadUserIrFile (f))
+                {
+                    safe->ph.proc.undo.beginNewTransaction();
+                    safe->ph.setGesture (pid::toneIr, 5.0f);
+                    safe->refresh();
+                }
+            });
         };
-        addAndMakeVisible (autoRelBtn);
         setHelp (autoRelBtn, "AUTO RELEASE", "入力信号の長さ・深さに応じて自動でリリース時間を調整", "Auto release: adapts release time dynamically based on program material");
+        setHelp (tpBtn, "TRUE PEAK (4x)", "4 倍インターサンプル補間でサンプル間の真のピークを検出。デジタルリミッターでのピーク漏れを防ぐ", "4x Catmull-Rom inter-sample true-peak detection: prevents inter-sample overs");
+        setHelp (fbPostBtn, "POST-OUT FEEDBACK", "Feedback のとき、素子の直後ではなく出力段（トランス・真空管・Tone IR）の後の信号を検出器に戻す。出力段の低域飽和や倍音が圧縮と相互作用する実機挙動", "When Feedback is on, taps the detector after the output stage & Tone IR instead of right after the element");
+        setHelp (attCurveV, "ATTACK CURVE", "Attack の立ち上がり形状。Exp（0%）は最初から素早く絞る。Lin（100%）は一定の dB/ms で絞り、打点のアタック感を残す", "Attack shape: Exp (0%) grabs immediately; Lin (100%) ramps linearly in dB, preserving initial transient punch");
+        setHelp (crestRelV, "CREST RELEASE", "瞬間クレスト（Peak − RMS）に連続追従するアダプティブ Release。打点直後は速く戻ってポンピングを防ぎ、持続音では遅くして低域歪みを抑える", "Continuous crest-factor adaptive release: recovers faster after spiky transients, slower on sustained bass/pads");
+        setHelp (toneIrBox, "TONE IR", "実機コンプレッサー／トランスの周波数・位相特性（IR 解析モデルの 5 段 Biquad、または User IR のゼロレイテンシ畳み込み）。ANALOG % で効き具合を調整", "Hardware frequency/phase tone profile (IR-fitted Biquad cascade or zero-latency User IR convolution), scaled by ANALOG %");
+        setHelp (irLoadBtn, "LOAD USER IR", "手元の IR ファイル（WAV / AIFF / FLAC）を読み込み、Tone IR を User IR 畳み込みに切り替える", "Load a local IR audio file (WAV / AIFF / FLAC) into the zero-latency convolver and select User IR");
         setHelp (dynModeSeg, "DYNAMICS MODE", "Comp（圧縮）、Exp（エキスパンダー：しきい値以下を下げる）、Gate（ノイズゲート：しきい値以下を遮断）", "Dynamics mode: Compressor, Expander, or Noise Gate");
 
         // values a method fixes: greyed, with the reason
@@ -166,9 +188,8 @@ public:
         upThrV.lockNote = [this, T] { return ph.value (pid::upOn) > 0.5f ? juce::String() : T ("Upward Off", "upward off"); };
         upRatioV.lockNote = upThrV.lockNote; upRangeV.lockNote = upThrV.lockNote;
         crestV.lockNote = [this, T] { return (int) ph.value (pid::detector) == mod::DetCrest ? juce::String() : T ("Peak + RMS のみ", "Peak + RMS only"); };
-        relCurveV.lockNote = [this, T] { const int t = (int) ph.value (pid::timing);
-                                         return (int) ph.value (pid::detector) == mod::DetDiode ? T ("電圧領域では固定", "fixed in the voltage domain")
-                                              : (t == mod::TimOptoMem || t == mod::TimDualAvg) ? T ("この方式では固定", "fixed for this method") : juce::String(); };
+        attCurveV.lockNote = [this, T] { const int t = (int) ph.value (pid::timing); return (t == mod::TimOptoMem || t == mod::TimDualAvg) ? T ("固定", "fixed") : juce::String(); };
+        relCurveV.lockNote = [this, T] { const int t = (int) ph.value (pid::timing); return (t == mod::TimOptoMem || t == mod::TimDualAvg) ? T ("固定", "fixed") : juce::String(); };
         xLoV.lockNote = [this, T] { return (ph.value (pid::mb) > 0.5f || ph.value (pid::scMb) > 0.5f) ? juce::String() : T ("3-band のみ", "3-band only"); };
         xHiV.lockNote = xLoV.lockNote;
         for (auto* gv : { &gLoV, &gMidV, &gHiV }) gv->lockNote = [this] { return ph.value (pid::mb) > 0.5f ? juce::String() : juce::String::fromUTF8 ("\xe2\x80\x94"); };
@@ -178,12 +199,12 @@ public:
         driveV.lockNote = [this, T] { const int e = (int) ph.value (pid::element); return (e == mod::ElClean || e == mod::ElOpto) ? T ("この素子は歪まない", "this element is clean") : juce::String(); };
         bandHzV.lockNote = [this, T] { return (int) ph.value (pid::band) == mod::BandOff ? T ("Band Off", "band off") : juce::String(); };
         bandQV.lockNote = bandHzV.lockNote;
-        for (auto* d : { &hpfV, &tiltV, &linkV, &bandV, &bandHzV, &bandQV, &rmsV, &crestV, &lookV, &holdV, &slowV, &amtV, &relCurveV, &driveV, &upThrV, &upRatioV, &upRangeV, &xLoV, &xHiV })
+        for (auto* d : { &hpfV, &tiltV, &linkV, &bandV, &bandHzV, &bandQV, &rmsV, &crestV, &lookV, &holdV, &slowV, &amtV, &attCurveV, &relCurveV, &crestRelV, &driveV, &upThrV, &upRatioV, &upRangeV, &xLoV, &xHiV })
         {                                                               // spectral compression uses only threshold, ratio, knee, attack, release, GR limit, makeup, mix
             auto old = d->lockNote;
             d->lockNote = [this, old, T] { if ((int) ph.value (pid::law) == mod::LawSpectral) return T ("Spectral では無効", "n/a in Spectral"); return old ? old() : juce::String(); };
         }
-        for (auto* d : { &hpfV, &tiltV, &bandV, &bandHzV, &bandQV, &rmsV, &crestV, &attV, &relV, &lookV, &holdV, &slowV, &amtV, &relCurveV })
+        for (auto* d : { &hpfV, &tiltV, &bandV, &bandHzV, &bandQV, &rmsV, &crestV, &attV, &relV, &lookV, &holdV, &slowV, &amtV, &attCurveV, &relCurveV, &crestRelV })
         {                                                               // a clipper has no detector filters and no time constants
             auto old = d->lockNote;
             d->lockNote = [this, old, T] { if ((int) ph.value (pid::law) == mod::LawClip) return T ("Clipper では無効", "n/a in Clipper"); return old ? old() : juce::String(); };
@@ -193,9 +214,9 @@ public:
         ctlIds = { { &inputV, pid::input }, { &hpfV, pid::scHpf }, { &tiltV, pid::scTilt }, { &linkV, pid::link }, { &bandV, pid::band }, { &bandHzV, pid::bandHz }, { &bandQV, pid::bandQ },
                    { &rmsV, pid::rmsWin }, { &thrV, pid::threshold }, { &ratioV, pid::ratio }, { &kneeV, pid::knee }, { &attV, pid::attack }, { &relV, pid::release }, { &lookV, pid::lookahead },
                    { &holdV, pid::hold }, { &slowV, pid::slowMult }, { &amtV, pid::slowAmt }, { &driveV, pid::drive }, { &analogV, pid::analog }, { &makeV, pid::makeup }, { &mixV, pid::mix }, { &stereoV, pid::stereo },
-                   { &upThrV, pid::upThr }, { &upRatioV, pid::upRatio }, { &relCurveV, pid::relCurve }, { &crestV, pid::crest }, { &grLimV, pid::grLimit }, { &upRangeV, pid::upRange },
+                   { &upThrV, pid::upThr }, { &upRatioV, pid::upRatio }, { &attCurveV, pid::attCurve }, { &relCurveV, pid::relCurve }, { &crestRelV, pid::crestRel }, { &crestV, pid::crest }, { &grLimV, pid::grLimit }, { &upRangeV, pid::upRange },
                    { &xLoV, pid::xLo }, { &xHiV, pid::xHi }, { &gLoV, pid::mbLo }, { &gMidV, pid::mbMid }, { &gHiV, pid::mbHi }, { &preThrV, pid::preThr },
-                   { &topoSeg, pid::topology }, { &osSeg, pid::os }, { &timBox.box, pid::timing }, { &outBox.box, pid::outStage }, { &dynModeSeg, pid::dynMode } };
+                   { &topoSeg, pid::topology }, { &osSeg, pid::os }, { &timBox.box, pid::timing }, { &outBox.box, pid::outStage }, { &toneIrBox.box, pid::toneIr }, { &dynModeSeg, pid::dynMode } };
         blocks = {
             { "\xe2\x91\xa0", "INPUT", "入力", "input", "INPUT BLOCK", "入力ゲインと入力トランス。ゲインは検出器と素子の両方の前にあり、Threshold との相対関係を変える。Threshold ノブのない機種（FET 76・Opto 2A）は、ここで信号を押し込んで圧縮量を決める。トランスは低域だけを飽和させる",
               "Input gain and input transformer. The gain sits before both the detector and the element, so it moves the signal against Threshold. Units without a Threshold knob (FET 76, Opto 2A) set the amount of compression here. The transformer saturates only the lows" },
@@ -294,7 +315,9 @@ public:
         inputV.setBounds (full (0, 0)); xfSeg.setBounds (seg (0, 1)); mbSeg.setBounds (seg (0, 2)); xLoV.setBounds (half (0, 3, 0)); xHiV.setBounds (half (0, 3, 1));
         srcSeg.setBounds (seg (1, 0)); hpfV.setBounds (half (1, 1, 0)); tiltV.setBounds (half (1, 1, 1)); linkV.setBounds (half (1, 2, 0)); bandV.setBounds (half (1, 2, 1));
         bandHzV.setBounds (half (1, 3, 0)); bandQV.setBounds (half (1, 3, 1)); onlySeg.setBounds (X (1), y0 + 4 * 30 + 8, w, 16); stereoV.setBounds (full (0, 4));
-        detBox.setBounds (X (2), y0, w, 22); topoSeg.setBounds (seg (2, 1)); rmsV.setBounds (half (2, 2, 0)); crestV.setBounds (half (2, 2, 1));
+        detBox.setBounds (X (2), y0, w - 24, 22); tpBtn.setBounds (X (2) + w - 22, y0 + 1, 22, 20);
+        topoSeg.setBounds (X (2), rowY (2, 1) + 11, w - 34, 18); fbPostBtn.setBounds (X (2) + w - 32, rowY (2, 1) + 11, 32, 18);
+        rmsV.setBounds (half (2, 2, 0)); crestV.setBounds (half (2, 2, 1));
         scMbSeg.setBounds (seg (2, 3)); sLoV.setBounds (X (2), rowY (2, 4), 40, 29); sMidV.setBounds (X (2) + 44, rowY (2, 4), 40, 29); sHiV.setBounds (X (2) + 88, rowY (2, 4), 40, 29);
         lawBox.setBounds (X (3), y0, w, 20); dynModeSeg.setBounds (X (3), y0 + 22, w, 16);
         thrV.setBounds (X (3), y0 + 40, hw, 25); ratioV.setBounds (X (3) + hw + 4, y0 + 40, hw, 25);
@@ -303,23 +326,33 @@ public:
         grLimV.setBounds (X (3), y0 + 121, hw, 25); upRangeV.setBounds (X (3) + hw + 4, y0 + 121, hw, 25);
         timBox.setBounds (X (4), y0, w - 20, 22); autoRelBtn.setBounds (X (4) + w - 18, y0 + 1, 18, 20);
         attV.setBounds (half (4, 1, 0)); relV.setBounds (half (4, 1, 1)); lookV.setBounds (half (4, 2, 0)); holdV.setBounds (half (4, 2, 1));
-        slowV.setBounds (half (4, 3, 0)); amtV.setBounds (half (4, 3, 1)); relCurveV.setBounds (full (4, 4));
+        slowV.setBounds (half (4, 3, 0)); amtV.setBounds (half (4, 3, 1));
+        attCurveV.setBounds (X (4), rowY (4, 4), 40, 29); relCurveV.setBounds (X (4) + 44, rowY (4, 4), 40, 29); crestRelV.setBounds (X (4) + 88, rowY (4, 4), 40, 29);
         elBox.setBounds (X (5), y0, w, 22); driveV.setBounds (half (5, 1, 0)); analogV.setBounds (half (5, 1, 1)); osSeg.setBounds (seg (5, 2)); preSeg.setBounds (seg (5, 3)); preThrV.setBounds (full (5, 4));
         outBox.setBounds (X (6), y0, w, 22); makeV.setBounds (full (6, 1)); mixV.setBounds (full (6, 2));
         gLoV.setBounds (X (6), rowY (6, 3), 40, 29); gMidV.setBounds (X (6) + 44, rowY (6, 3), 40, 29); gHiV.setBounds (X (6) + 88, rowY (6, 3), 40, 29);
+        toneIrBox.setBounds (X (6), rowY (6, 4) + 8, w - 26, 20); irLoadBtn.setBounds (X (6) + w - 24, rowY (6, 4) + 8, 24, 20);
     }
 
     void refresh()
     {
-        for (auto* b : { &detBox, &lawBox, &timBox, &elBox, &outBox }) b->sync();
+        for (auto* b : { &detBox, &lawBox, &timBox, &elBox, &outBox, &toneIrBox }) b->sync();
         dynModeSeg.repaint();
-        const bool aRelOn = ph.value (pid::autoRel) > 0.5f;
-        autoRelBtn.setColour (juce::TextButton::buttonColourId, aRelOn ? juce::Colour (0xffe67e22) : juce::Colour (0x20ffffff));
-        autoRelBtn.setColour (juce::TextButton::textColourOffId, aRelOn ? juce::Colours::white : juce::Colour (0xffb5bcc4));
+        auto styleBtn = [] (juce::TextButton& b, bool on, bool enabled = true)
+        {
+            b.setEnabled (enabled); b.setAlpha (enabled ? 1.0f : 0.4f);
+            b.setColour (juce::TextButton::buttonColourId, on ? juce::Colour (0xffe67e22) : juce::Colour (0x20ffffff));
+            b.setColour (juce::TextButton::textColourOffId, on ? juce::Colours::white : juce::Colour (0xffb5bcc4));
+        };
+        const int law = (int) ph.value (pid::law); const bool sp = law == mod::LawSpectral, cl = law == mod::LawClip;
+        const bool fbOn = (int) ph.value (pid::topology) == 1;
+        styleBtn (autoRelBtn, ph.value (pid::autoRel) > 0.5f, ! sp && ! cl);
+        styleBtn (tpBtn, ph.value (pid::tpDet) > 0.5f && (int) ph.value (pid::detector) != mod::DetRMS, ! sp && ! cl && (int) ph.value (pid::detector) != mod::DetRMS);
+        styleBtn (fbPostBtn, ph.value (pid::fbPost) > 0.5f && fbOn, ! sp && ! cl && fbOn);
+        styleBtn (irLoadBtn, (int) ph.value (pid::toneIr) == 5 && ph.proc.hasUserIr(), ! sp);
         {                                                               // Spectral skips ③ ⑤ ⑥ ⑦ and the topology; Clipper skips ③ and ⑤
-            const int law = (int) ph.value (pid::law); const bool sp = law == mod::LawSpectral, cl = law == mod::LawClip;
             auto en = [] (juce::Component& c, bool on) { if (c.isEnabled() != on) { c.setEnabled (on); c.setAlpha (on ? 1.0f : 0.4f); } };
-            en (detBox, ! sp && ! cl); en (timBox, ! sp && ! cl); en (elBox, ! sp); en (outBox, ! sp); en (topoSeg, ! sp && ! cl);
+            en (detBox, ! sp && ! cl); en (timBox, ! sp && ! cl); en (elBox, ! sp); en (outBox, ! sp); en (toneIrBox, ! sp); en (topoSeg, ! sp && ! cl);
         }
         const bool ride = (int) ph.value (pid::law) == mod::LawRide;           // gain riding: the same parameters under their riding names
         thrV.setCaption (ride ? "TARGET" : "THRESH"); upThrV.setCaption (ride ? "IDLE <" : "UP THR");
@@ -366,7 +399,7 @@ public:
         }
         g.setColour (theme::onWell()); g.setFont (theme::ui (9.0f));
         auto cap = [&] (juce::Component& c, const char* t) { g.drawText (t, c.getX() + 2, c.getY() - 11, 126, 11, juce::Justification::centredLeft); };
-        cap (xfSeg, "IN TRANSFORMER"); cap (srcSeg, "SOURCE"); cap (topoSeg, "TOPOLOGY"); cap (osSeg, "OVERSAMPLE"); cap (mbSeg, "BANDS"); cap (scMbSeg, "DETECT BANDS"); cap (upSeg, "UPWARD"); cap (preSeg, "PRE-STAGE");
+        cap (xfSeg, "IN TRANSFORMER"); cap (srcSeg, "SOURCE"); cap (topoSeg, "TOPOLOGY"); cap (osSeg, "OVERSAMPLE"); cap (mbSeg, "BANDS"); cap (scMbSeg, "DETECT BANDS"); cap (upSeg, "UPWARD"); cap (preSeg, "PRE-STAGE"); cap (toneIrBox, "TONE IR");
         // feedback return path: element → detector
         const bool fb = (int) ph.value (pid::topology) == 1;
         const float cx5 = (float) blocks[5].r.getCentreX(), cx2 = (float) blocks[2].r.getCentreX(), yb = (float) blocks[2].r.getBottom(), yl = yb + 10.0f;
@@ -390,14 +423,15 @@ public:
 private:
     struct Block { const char* num; const char* en; const char* subJa; const char* subEn; const char* ht; const char* hj; const char* he; juce::Rectangle<int> r; };
     ParamHelp& ph;
-    DragValue inputV, hpfV, tiltV, linkV, bandV, bandHzV, bandQV, rmsV, thrV, ratioV, kneeV, attV, relV, lookV, holdV, slowV, amtV, driveV, analogV, makeV, mixV, upThrV, upRatioV, xLoV, xHiV, gLoV, gMidV, gHiV, relCurveV, crestV, grLimV, upRangeV, stereoV, sLoV, sMidV, sHiV, preThrV;
+    DragValue inputV, hpfV, tiltV, linkV, bandV, bandHzV, bandQV, rmsV, thrV, ratioV, kneeV, attV, relV, lookV, holdV, slowV, amtV, driveV, analogV, makeV, mixV, upThrV, upRatioV, xLoV, xHiV, gLoV, gMidV, gHiV, attCurveV, relCurveV, crestRelV, crestV, grLimV, upRangeV, stereoV, sLoV, sMidV, sHiV, preThrV;
     Seg xfSeg, srcSeg, onlySeg, topoSeg, osSeg, upSeg, mbSeg, scMbSeg, preSeg, dynModeSeg;
-    juce::TextButton autoRelBtn { "A" };
+    juce::TextButton autoRelBtn { "A" }, tpBtn { "TP" }, fbPostBtn { "POST" }, irLoadBtn { "IR" };
+    std::unique_ptr<juce::FileChooser> irChooser;
     std::vector<std::pair<juce::Component*, const char*>> ctlIds;
 public:
     juce::StringArray panelIds;                 // parameters the current model's PANEL moves (set by the editor)
 private:
-    ChoiceWithArrows detBox, lawBox, timBox, elBox, outBox;
+    ChoiceWithArrows detBox, lawBox, timBox, elBox, outBox, toneIrBox;
     std::vector<Block> blocks;
 };
 

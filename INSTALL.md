@@ -1,8 +1,8 @@
-# Compressor Anatomy Lab 2 β — インストール方法 / Installation
+# Compressor Anatomy Lab 2 — インストール方法 / Installation
 
-> **ベータ版です。** Mac の Ableton Live で動作確認済み。
+> Mac の Ableton Live で動作確認済み（無料配布中）。
 > **Windows 版は実機での動作確認ができていません**（自動ビルドで作成）。
-> **Beta.** Tested with Ableton Live on Mac.
+> Tested with Ableton Live on Mac (Freeware).
 > **The Windows build of Lab 2 has NOT been tested on a real Windows machine.**
 > 不具合は / Problems: [Issues](https://github.com/kazufumi01/CompAnatomyLab2/issues)
 
@@ -10,10 +10,10 @@
 
 | ファイル | 内容 |
 |---|---|
-| [`CompAnatomyLab2-0.2.1-mac.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.1-mac.zip) | Mac・手動インストール（おすすめ） |
-| [`CompAnatomyLab2-0.2.1-mac.pkg`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.1-mac.pkg) | Mac・インストーラー（ターミナルを使いたくない人向け） |
-| [`CompAnatomyLab2-0.2.1-win64.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.1-win64.zip) | Windows・手動インストール（未検証） |
-| [`CompAnatomyLab2-0.2.1-win64.exe`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.1-win64.exe) | Windows・インストーラー（未検証） |
+| [`CompAnatomyLab2-0.2.2-mac.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.2-mac.zip) | Mac・手動インストール（おすすめ） |
+| [`CompAnatomyLab2-0.2.2-mac.pkg`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.2-mac.pkg) | Mac・インストーラー（ターミナルを使いたくない人向け） |
+| [`CompAnatomyLab2-0.2.2-win64.zip`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.2-win64.zip) | Windows・手動インストール（未検証） |
+| [`CompAnatomyLab2-0.2.2-win64.exe`](https://github.com/kazufumi01/CompAnatomyLab2/releases/latest/download/CompAnatomyLab2-0.2.2-win64.exe) | Windows・インストーラー（未検証） |
 
 ---
 

@@ -48,10 +48,32 @@ inline const std::vector<Def>& defs()
             { mk ("OUTPUT") },
             { K ("ATTACK", pid::attack, 0.8f, 0.02f, true, FTime, "⑤ 800 µs〜20 µs。右へ回すほど速い（数字が大きい＝速い）", "⑤ 800 µs – 20 µs. Clockwise = faster (higher number = faster)", 1, 7) },
             { K ("RELEASE", pid::release, 1100, 50, true, FTime, "⑤ 1.1 s〜50 ms＋遅い成分。右へ回すほど速い", "⑤ 1.1 s – 50 ms plus a slow part. Clockwise = faster", 1, 7) },
-            { S ("RATIO", { { "4", { { pid::ratio, 4 }, { pid::drive, 0 }, { pid::slowAmt, 40 } } }, { "8", { { pid::ratio, 8 }, { pid::drive, 0 }, { pid::slowAmt, 40 } } },
-                            { "12", { { pid::ratio, 12 }, { pid::drive, 0 }, { pid::slowAmt, 40 } } }, { "20", { { pid::ratio, 20 }, { pid::drive, 0 }, { pid::slowAmt, 40 } } },
-                            { "ALL", { { pid::ratio, 20 }, { pid::drive, 8 }, { pid::slowAmt, 70 } } } },
+            { S ("RATIO", { { "4", { { pid::ratio, 4 }, { pid::drive, 0 }, { pid::slowAmt, 45 } } }, { "8", { { pid::ratio, 8 }, { pid::drive, 0 }, { pid::slowAmt, 45 } } },
+                            { "12", { { pid::ratio, 12 }, { pid::drive, 0 }, { pid::slowAmt, 45 } } }, { "20", { { pid::ratio, 20 }, { pid::drive, 0 }, { pid::slowAmt, 45 } } },
+                            { "ALL", { { pid::ratio, 32 }, { pid::drive, 6 }, { pid::slowAmt, 70 } } } },
                  "④ 比を上げると Threshold も上がり、ニーが硬くなる。ALL＝全押し：⑥ の歪みと ⑤ の遅い成分が増える", "④ a higher ratio raises the threshold and hardens the knee. ALL = all buttons in: more ⑥ distortion and more of the ⑤ slow part") } } });
+        v.push_back ({ "fet76blue", v.back().slots });
+        v.push_back ({ "fet76ae", v.back().slots });
+        v.push_back ({ "zener", {
+            { K ("INPUT", pid::input, -12, 24, false, FDb, "① 入力ゲイン", "① input gain") },
+            { thr (0, -40, "④ Threshold", "④ Threshold") },
+            { K ("ATTACK", pid::attack, 0.5f, 80, true, FTime, "⑤ Attack", "⑤ Attack") },
+            { K ("RELEASE", pid::release, 20, 1000, true, FTime, "⑤ Release", "⑤ Release") },
+            { S ("MODE", { { "Comp", { { pid::ratio, 3.5f }, { pid::knee, 8 } } }, { "Limit", { { pid::ratio, 12 }, { pid::knee, 3 } } } }, "④ Comp / Limit 切替", "④ Comp / Limit mode") },
+            { mk ("OUTPUT") } } });
+        v.push_back ({ "varimu_mod", {
+            { K ("INPUT", pid::input, -12, 12, false, FDb, "① 入力ゲイン", "① input gain") },
+            { thr (0, -40, "④ Threshold", "④ Threshold") },
+            { K ("ATTACK", pid::attack, 2, 100, true, FTime, "⑤ Attack", "⑤ Attack") },
+            { K ("RECOVERY", pid::release, 50, 2000, true, FTime, "⑤ Release", "⑤ Release") },
+            { S ("SC HP", vals (pid::scHpf, { { "Off", 0 }, { "100 Hz", 3 } }), "② サイドチェイン HPF", "② sidechain HPF") },
+            { mk ("OUTPUT") } } });
+        v.push_back ({ "busg_auto", {
+            { thr (0, -40, "④ Threshold", "④ Threshold") },
+            { S ("ATTACK ms", vals (pid::attack, { { "0.1", 0.1f }, { "0.3", 0.3f }, { "1", 1 }, { "3", 3 }, { "10", 10 }, { "30", 30 } }), "⑤ Attack", "⑤ Attack"),
+              S ("RELEASE", { { "Fast", { { pid::release, 80 }, { pid::crestRel, 40 } } }, { "Auto", { { pid::release, 120 }, { pid::crestRel, 75 } } }, { "Slow", { { pid::release, 300 }, { pid::crestRel, 90 } } } }, "⑤ クレスト連動 Auto Release", "⑤ crest-adaptive Auto Release") },
+            { S ("RATIO", vals (pid::ratio, { { "2", 2 }, { "4", 4 }, { "10", 10 } }), "④ Ratio", "④ Ratio") },
+            { mk ("MAKEUP") } } });
 
         const std::vector<Opt> compLimit { { "Comp", { { pid::ratio, 3 } } }, { "Limit", { { pid::ratio, 10 } } } };
         v.push_back ({ "opto2a", {
@@ -226,7 +248,12 @@ inline Face faceFor (const char* id)
 {
     static const std::pair<const char*, Face> f[] = {
         { "digital",  { 0xff20242b, 0xffe4e1da, 0xff2c3138, 0xff6fc3d6, 0xff6fc3d6 } },
-        { "fet76",    { 0xff161718, 0xffdcdcd8, 0xff0b0b0c, 0xffffffff, 0xffdcdcd8 } },      // black face, silver lettering
+        { "fet76",     { 0xff161718, 0xffdcdcd8, 0xff0b0b0c, 0xffffffff, 0xffdcdcd8 } },      // black face, silver lettering
+        { "fet76blue", { 0xffb8bcc2, 0xff161718, 0xff111111, 0xffffffff, 0xff2b5fa8 } },      // brushed silver, blue stripe accent
+        { "fet76ae",   { 0xff1a1917, 0xffe8d29c, 0xff121110, 0xffe8d29c, 0xffd4a84f } },      // black + gold 40th style
+        { "zener",     { 0xff3b4652, 0xffeef2f6, 0xff1f242a, 0xffffffff, 0xffe06d3b } },      // slate blue-grey, warm orange accent
+        { "varimu_mod",{ 0xff2c2d30, 0xffe6e2d4, 0xffc8a24a, 0xff1a1a1a, 0xffc8a24a } },      // dark grey, gold knobs
+        { "busg_auto", { 0xff2a2d32, 0xffe2e2e2, 0xff3c4046, 0xffffffff, 0xffe67e22 } },      // console grey, amber auto accent
         { "opto2a",   { 0xff9b9d99, 0xff1a1a1a, 0xff121212, 0xffffffff, 0xff1a1a1a } },      // grey face, black knobs
         { "mu670",    { 0xff383a3e, 0xffe8e2d0, 0xff17181a, 0xffe8e2d0, 0xffc8a24a } },      // dark grey hammertone, cream lettering
         { "busg",     { 0xff2a2d32, 0xffe2e2e2, 0xff3c4046, 0xffffffff, 0xff4f8fd0 } },      // console grey, blue cap
