@@ -1,11 +1,8 @@
-# Windows (VST3 + Standalone) をクラウドでビルドし、インストーラー(.exe)と手動用zipを作る
-# v* タグの push で自動実行（Release に添付）、または「Actions」タブから手動実行
+# Windows (VST3 + Standalone) のみをクラウドでビルドし、インストーラー(.exe)と手動用zipを作る
+# 「Actions」タブから手動実行。release_tag（例 v0.2.2）を入れると、そのReleaseに添付する
 name: Build Windows
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       release_tag:
